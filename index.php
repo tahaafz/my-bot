@@ -35,7 +35,17 @@ foreach ($telegram_ip_ranges as $telegram_ip_range)
     }
 if (!$ok)
     die ("دسترسی غیرمجاز");
-    
+
+// پاسخ فوری به تلگرام - جلوگیری از بلاک شدن سایر کاربران
+http_response_code(200);
+ignore_user_abort(true);
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    ob_end_clean();
+    flush();
+}
+
 #-------------Variable----------#
 $x = 'price_product';
 $randomStringasli = random_int(100000, 999999);;
