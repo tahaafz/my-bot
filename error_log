@@ -1,0 +1,301 @@
+[18-May-2026 07:50:33 Europe/London] PHP Warning:  unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 52
+[18-May-2026 07:50:36 Europe/London] PHP Warning:  unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 79
+[18-May-2026 10:21:08 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 79
+[18-May-2026 10:21:09 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined array key "email" in /home/ifytop/public_html/bot/x-ui_single.php on line 198
+[18-May-2026 10:21:10 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 216
+[18-May-2026 10:21:10 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined variable $volume in /home/ifytop/public_html/bot/index.php on line 938
+[18-May-2026 10:21:10 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined variable $volume in /home/ifytop/public_html/bot/index.php on line 939
+[18-May-2026 10:21:10 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 400000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 4
+    [last_message_time] => 1779086996
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [8192] number_format(): Passing null to parameter #1 ($num) of type float is deprecated in /home/ifytop/public_html/bot/index.php on line 939
+[18-May-2026 10:41:35 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_a5cf
+    [Processing_value_one] => none
+    [Processing_value_tow] => 1201211766_a5cf
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 50000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 1
+    [last_message_time] => 1779087072
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Trying to access array offset on value of type bool in /home/ifytop/public_html/bot/index.php on line 752
+[18-May-2026 10:45:08 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => 9607
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 1700000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 6
+    [last_message_time] => 1779088431
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 79
+[18-May-2026 10:45:27 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => 9607
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 1700000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 6
+    [last_message_time] => 1779088431
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined array key "email" in /home/ifytop/public_html/bot/x-ui_single.php on line 198
+[18-May-2026 10:52:39 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 1200000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 2
+    [last_message_time] => 1779088943
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined array key "data_limit" in /home/ifytop/public_html/bot/index.php on line 945
+[18-May-2026 10:52:39 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 1200000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 2
+    [last_message_time] => 1779088943
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined array key "used_traffic" in /home/ifytop/public_html/bot/index.php on line 946
+[18-May-2026 10:52:39 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => d224
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 1200000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 2
+    [last_message_time] => 1779088943
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] Undefined array key "expire" in /home/ifytop/public_html/bot/index.php on line 948
+[18-May-2026 11:15:08 Asia/Tehran] User details: Array
+(
+    [id] => 1201211766
+    [limit_usertest] => 8
+    [roll_Status] => 0
+    [Processing_value] => 1201211766_39f3
+    [Processing_value_one] => none
+    [Processing_value_tow] => 1201211766_39f3
+    [Processing_value_four] => hibe_280000
+    [step] => home
+    [description_blocking] => 
+    [number] => none
+    [Balance] => 150000
+    [User_Status] => Active
+    [pagenumber] => 1
+    [message_count] => 5
+    [last_message_time] => 1779089315
+    [affiliatescount] => 0
+    [affiliates] => 0
+    [username] => anamooo
+    [trusteduser] => 11
+)
+ - Error: [2] unlink(cookie.txt): No such file or directory in /home/ifytop/public_html/bot/x-ui_single.php on line 266

@@ -1,0 +1,1 @@
+[23-Sep-2025 20:12:04 Asia/Tehran] PHP Warning:  Trying to access array offset on value of type null in /home/ifytop/public_html/bot/cron/sendmessage.php on line 24

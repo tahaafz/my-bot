@@ -1,0 +1,2 @@
+[05-Aug-2024 16:27:08 Europe/London] PHP Warning:  file_get_contents(https://api.telegram.org/7007221177:AAE_j6g_f7ZDzbKwNU6E4AUFkRPSqMpX_7A/deleteWebhook?drop_pending_updates=true): Failed to open stream: HTTP request failed! HTTP/1.1 404 Not Found
+ in /home/ifytop/public_html/bot/install/data.php on line 69
