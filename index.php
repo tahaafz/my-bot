@@ -2021,7 +2021,9 @@ if ($text == $datatextbot['text_Add_Balance']) {
     sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
     step('get_step_payment', $from_id);
 } elseif ($user['step'] == "get_step_payment") {
-    if($user['trusteduser'] > 0) {
+    if($user['trusteduser'] == 99) {
+        $datain = "aqayepardakht";
+    } elseif($user['trusteduser'] > 0) {
         $datain = "cart_to_offline";
     }
     if ($datain == "cart_to_offline") {
