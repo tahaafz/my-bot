@@ -1,22 +1,33 @@
 <?php
 require_once __DIR__ . '/../../env/config.php';
 
-function xui_cookie_path(): string {
-    static $path = null;
-    if ($path === null) {
-        $path = tempnam(sys_get_temp_dir(), 'xui_cookie_');
-    }
-    return $path;
+function xui_cookie_path(string $url = 'default'): string {
+    $key = sha1(rtrim($url, '/'));
+    return sys_get_temp_dir() . "/xui_cookie_{$key}.txt";
 }
 
-function xui_cookie_cleanup(): void {
-    $path = xui_cookie_path();
+function xui_cookie_is_valid(string $url): bool {
+    $path = xui_cookie_path($url);
+    return file_exists($path) && filesize($path) > 0 && filemtime($path) >= (time() - 86400);
+}
+
+function xui_cookie_cleanup(string $url = 'default'): void {
+    $path = xui_cookie_path($url);
     if (file_exists($path)) {
         unlink($path);
     }
 }
 
-function login($url,$username,$password){
+function login($url,$username,$password,$force = false){
+    if (!$force && xui_cookie_is_valid($url)) {
+        return array('success' => true, 'cached' => true);
+    }
+
+    if ($force) {
+        xui_cookie_cleanup($url);
+    }
+
+    $cookiePath = xui_cookie_path($url);
     $curl = curl_init();
     curl_setopt_array($curl, array(
         CURLOPT_URL => $url.'/login',
@@ -28,12 +39,15 @@ function login($url,$username,$password){
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'POST',
         CURLOPT_POSTFIELDS => "username=$username&password=$password",
-        CURLOPT_COOKIEJAR => xui_cookie_path(),
+        CURLOPT_COOKIEJAR => $cookiePath,
+        CURLOPT_COOKIEFILE => $cookiePath,
     ));
     $response = curl_exec($curl);
     if (curl_error($curl)) {
         $token = [];
-        $token['errror'] = curl_error($curl);
+        $token['error'] = curl_error($curl);
+        $token['errror'] = $token['error'];
+        curl_close($curl);
         return $token;
     }
     curl_close($curl);
@@ -59,11 +73,10 @@ function get_Client($username,$namepanel){
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json'
         ),
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
     ));
     $raw = curl_exec($curl);
     curl_close($curl);
-    xui_cookie_cleanup();
     $decoded = json_decode($raw, true);
     return isset($decoded['obj']) ? $decoded['obj'] : null;
 }
@@ -85,12 +98,11 @@ function get_clinets($username,$namepanel){
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json'
         ),
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
     ));
     $output = [];
     $raw = curl_exec($curl);
     curl_close($curl);
-    xui_cookie_cleanup();
     $decoded = json_decode($raw, true);
     $response = $decoded['obj'] ?? [];
     foreach ($response as $client) {
@@ -146,7 +158,7 @@ function addClient($namepanel, $usernameac, $Expire,$Total, $Uuid,$Flow,$subid){
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'POST',
         CURLOPT_POSTFIELDS => $configpanel,
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json',
@@ -156,7 +168,6 @@ function addClient($namepanel, $usernameac, $Expire,$Total, $Uuid,$Flow,$subid){
     $response = curl_exec($curl);
 
     curl_close($curl);
-    xui_cookie_cleanup();
     return json_decode($response, true);
 }
 function updateClient($namepanel, $username,array $config){
@@ -188,7 +199,7 @@ function updateClient($namepanel, $username,array $config){
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'POST',
         CURLOPT_POSTFIELDS => $configpanel,
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json',
@@ -199,7 +210,6 @@ function updateClient($namepanel, $username,array $config){
     $response = curl_exec($curl);
 
     curl_close($curl);
-    xui_cookie_cleanup();
     return json_decode($response, true);
 }
 function ResetUserDataUsagex_uisin($usernamepanel, $namepanel){
@@ -217,7 +227,7 @@ function ResetUserDataUsagex_uisin($usernamepanel, $namepanel){
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json',
@@ -227,7 +237,6 @@ function ResetUserDataUsagex_uisin($usernamepanel, $namepanel){
 
     $response = curl_exec($curl);
     curl_close($curl);
-    xui_cookie_cleanup();
 }
 function removeClient($location,$username){
     global $connect;
@@ -245,7 +254,7 @@ function removeClient($location,$username){
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json',
         ),
@@ -253,7 +262,6 @@ function removeClient($location,$username){
 
     $response = json_decode(curl_exec($curl),true);
     curl_close($curl);
-    xui_cookie_cleanup();
     return $response;
 }
 function get_onlinecli($name_panel,$username){
@@ -273,11 +281,10 @@ function get_onlinecli($name_panel,$username){
         CURLOPT_HTTPHEADER => array(
             'Accept: application/json'
         ),
-        CURLOPT_COOKIEFILE => xui_cookie_path(),
+        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
     ));
     $raw = curl_exec($curl);
     curl_close($curl);
-    xui_cookie_cleanup();
     $decoded = json_decode($raw, true);
     $response = $decoded['obj'] ?? null;
     if($response == null)return "offline";

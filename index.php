@@ -2861,7 +2861,7 @@ if ($text == "🔌 وضعیت اتصال پنل") {
             sendmessage($from_id, $text_marzban, null, 'HTML');
         }
     } elseif ($marzban_list_get['type'] == "x-ui_single") {
-        $x_ui_check_connect = login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+        $x_ui_check_connect = login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel'], true);
         if ($x_ui_check_connect['success']) {
             sendmessage($from_id, $textbotlang['Admin']['managepanel']['connectx-ui'], null, 'HTML');
         } elseif ($x_ui_check_connect['msg'] == "Invalid username or password.") {
