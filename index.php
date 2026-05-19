@@ -2210,9 +2210,9 @@ elseif ($user['Processing_value'] >= 1000000 || $user['Processing_value'] < 2400
                     [
                         ['text' => $textbotlang['users']['Balance']['payments2'], 'url' => $paymentUrl]
                     ],
-                    [
-                        ['text' => $textbotlang['users']['Balance']['payments3'], 'url' => $paymentUrl2]
-                    ],
+                    // [
+                    //     ['text' => $textbotlang['users']['Balance']['payments3'], 'url' => $paymentUrl2]
+                    // ],
                     [
                         ['text' => $textbotlang['users']['Balance']['Confirmpaying'], 'callback_data' => "kossher"]
                     ]
@@ -2558,7 +2558,7 @@ if (!empty($setting['Channel_Report'])) {
 ✍️ در صورت درست بودن رسید پرداخت را تایید نمایید.";
     // foreach ($admin_ids as $id_admin) {
         telegram('sendphoto', [
-            'chat_id' => '501813541',
+            'chat_id' => '6446084191',
             'photo' => $photoid,
             'reply_markup' => $Confirm_pay,
             'caption' => $textsendrasid,
