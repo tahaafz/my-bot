@@ -216,6 +216,7 @@ if ($datain == "confirmchannel") {
 }
 if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
     $trustLevel = (int)$trustMatch[1];
+    $previousTrustLevel = (int)($user['trusteduser'] ?? 0);
     update("user", "trusteduser", $trustLevel, "id", $from_id);
 
     $panelOrdersAdded = [];
@@ -232,8 +233,12 @@ if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
             }
         }
         if ($balanceAdded > 0) {
-            $pdo->prepare("UPDATE user SET Balance = Balance + :bal WHERE id = :id")
-                ->execute([':bal' => $balanceAdded, ':id' => $from_id]);
+            if ($previousTrustLevel > 10) {
+                $balanceAdded = 0;
+            } else {
+                $pdo->prepare("UPDATE user SET Balance = Balance + :bal WHERE id = :id")
+                    ->execute([':bal' => $balanceAdded, ':id' => $from_id]);
+            }
         }
         $panelStmt = $pdo->query("SELECT name_panel FROM marzban_panel WHERE status = 1 ORDER BY id ASC");
         $panels = [];
