@@ -2027,7 +2027,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
    // $text = $datain;
     if (!is_numeric($text))
         return sendmessage($from_id, $textbotlang['users']['Balance']['errorprice'], null, 'HTML');
-    if ($text > 2100000 or $text < 450000)
+    if ($text > 3000000 or $text < 450000)
         return sendmessage($from_id, $textbotlang['users']['Balance']['errorpricelimit'], null, 'HTML');
     update("user", "Processing_value", $text, "id", $from_id);
     sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
