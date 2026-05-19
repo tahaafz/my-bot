@@ -944,6 +944,7 @@ telegram('sendMessage', [
 	        $msgPanel = is_array($modifyResult) ? ($modifyResult['msg'] ?? 'خطای نامشخص پنل') : 'پاسخ نامعتبر از پنل';
 	        $msgPanel = htmlspecialchars((string) $msgPanel, ENT_QUOTES, 'UTF-8');
 	        sendmessage($from_id, "❌ تمدید سرویس در پنل انجام نشد و مبلغ به کیف پول شما برگشت.\n\nلطفا مجدد امتحان کنید", null, 'HTML');
+	        sendmessage('501813541', "⚠️ خطا در تمدید سرویس\n\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>\n❌ خطای پنل: <code>$msgPanel</code>", null, 'HTML');
 	        return;
 	    }
 	    $ManagePanel->ResetUserDataUsage($nameloc['Service_location'], $serviceUsername);

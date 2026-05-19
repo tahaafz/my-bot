@@ -191,24 +191,28 @@ function Modifyuser($location,$username,array $data)
 {
     global $panel_apikey;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
-//    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    if (isset($Check_token['access_token'])) {
+        $panel_apikey = $Check_token['access_token'];
+    }
     $url =  $marzban_list_get['url_panel'].'/api/user/'.$username;
     $payload = json_encode($data);
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-$headers = array();
-$headers[] = 'Accept: application/json';
-$headers[] = 'Authorization: Bearer '.$panel_apikey;
-$headers[] = 'Content-Type: application/json';
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_CAINFO, "fullchain.cer");
-
-$result = curl_exec($ch);
-curl_close($ch);
-     $data_useer = json_decode($result, true);
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    $headers = array();
+    $headers[] = 'Accept: application/json';
+    $headers[] = 'Authorization: Bearer '.$panel_apikey;
+    $headers[] = 'Content-Type: application/json';
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_CAINFO, "fullchain.cer");
+    $result = curl_exec($ch);
+    curl_close($ch);
+    $data_useer = json_decode($result, true);
     return $data_useer;
 }
 
