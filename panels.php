@@ -108,7 +108,6 @@ class ManagePanel{
                 }
                 $domain = explode(":", $Get_Data_Panel['linksubx']);
                 $subId = $UsernameData['subId'] ?? '';
-                $status_user = get_onlinecli($Get_Data_Panel['name_panel'],$username);
                 $subscription_url = $domain[0].":".$domain[1].":2096/sub/{$subId}?name={$subId}";
                 $raw_sub = outputlunk($subscription_url);
                 $decoded_sub = base64_decode($raw_sub, true);
@@ -119,7 +118,7 @@ class ManagePanel{
                     'username' => $UsernameData['email'],
                     'data_limit' => $UsernameData['total'],
                     'expire' => $UsernameData['expiryTime']/1000,
-                    'online_at' => $status_user,
+                    'online_at' => null,
                     'used_traffic' => $UsernameData['up']+$UsernameData['down'],
                     'links' => $links_user,
                     'subscription_url' => $subscription_url,

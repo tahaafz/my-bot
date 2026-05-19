@@ -894,10 +894,18 @@ telegram('sendMessage', [
         $remainingVolume = max(0, ($currentData['data_limit'] ?? 0) - ($currentData['used_traffic'] ?? 0));
     }
     $dataFetched = !empty($currentData) && isset($currentData['username']);
-        $preRemainGB  = $dataFetched ? round($remainingVolume / pow(1024, 3), 2) : '—';
-        $preLimitGB   = ($dataFetched && $currentData['data_limit'])  ? round($currentData['data_limit']  / pow(1024, 3), 2) : '—';
-        $preUsedGB    = ($dataFetched && $currentData['used_traffic']) ? round($currentData['used_traffic'] / pow(1024, 3), 2) : '—';
-        $preExpire    = ($dataFetched && $currentData['expire']) ? date('Y/m/d', $currentData['expire']) : '—';
+    if (!$dataFetched) {
+        $stmt = $pdo->prepare("UPDATE user SET Balance = Balance + :price WHERE id = :id");
+        $stmt->execute([':price' => $priceProduct, ':id' => $from_id]);
+        update("user", "Processing_value_one", "none", "id", $from_id);
+        sendmessage($from_id, "❌ در حال حاضر امکان دریافت اطلاعات سرویس از پنل وجود ندارد.\n\nمبلغ به کیف پول شما برگشت. لطفاً چند دقیقه دیگر مجدد تلاش کنید.", null, 'HTML');
+        sendmessage('501813541', "⚠️ خطا در دریافت اطلاعات سرویس (تمدید لغو شد)\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>", null, 'HTML');
+        return;
+    }
+        $preRemainGB  = round($remainingVolume / pow(1024, 3), 2);
+        $preLimitGB   = $currentData['data_limit']  ? round($currentData['data_limit']  / pow(1024, 3), 2) : 0;
+        $preUsedGB    = $currentData['used_traffic'] ? round($currentData['used_traffic'] / pow(1024, 3), 2) : 0;
+        $preExpire    = $currentData['expire'] ? date('Y/m/d', $currentData['expire']) : '—';
         $text_pre_report = "🔄 کاربر در حال تمدید سرویس است...
 
 🪪 آیدی عددی : <code>$from_id</code>
@@ -913,14 +921,14 @@ telegram('sendMessage', [
 • باقی‌مانده : {$preRemainGB} گیگ
 • انقضا : $preExpire";
         sendmessage('501813541', $text_pre_report, null, 'HTML');
-    
+
 
     $modifyResult = array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
     $maxRetries = 5;
     if ($marzban_list_get['type'] == "marzban" || $marzban_list_get['type'] == "x-ui_single") {
         $date = strtotime("+" . $product['Service_time'] . "day");
         $newDate = strtotime(date("Y-m-d H:i:s", $date));
-        $data_limit = $remainingVolume + intval($product['Volume_constraint']) * pow(1024, 3);
+        $data_limit = ($currentData['used_traffic'] ?? 0) + intval($product['Volume_constraint']) * pow(1024, 3);
         $datam = array(
             "expire" => $newDate,
             "data_limit" => $data_limit
