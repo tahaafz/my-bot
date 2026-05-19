@@ -124,6 +124,11 @@ function customErrorHandler($errno, $errstr, $errfile, $errline) {
     error_log($errorMessage);
 }
 
+function walletChargeMinimum($user): int
+{
+    return (int)($user['trusteduser'] ?? 0) === 99 ? 450000 : 360000;
+}
+
 set_error_handler("customErrorHandler");
 #---------channel--------------#
 $tch = '';
@@ -868,13 +873,14 @@ telegram('sendMessage', [
 	    $priceProduct = (int)$product['price_product'];
 	    $userBalance = (int)$user['Balance'];
 		    if ($userBalance < $priceProduct) {
+		        $minimumChargeFormatted = number_format(walletChargeMinimum($user));
 		        $confirmRenewKeyboard = json_encode([
 		            'inline_keyboard' => [
 		                [['text' => '✅ متوجه شدم، ادامه می‌دهم', 'callback_data' => 'confirm_wallet_charge']],
 		                [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser']],
 		            ]
 		        ]);
-		        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.\n\nبرای شارژ کیف پول روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
+		        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>{$minimumChargeFormatted} تومان</b> وجود ندارد.\n\nبرای شارژ کیف پول روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
 	        return;
 	    }
 	    $usernamepanel = $nameloc['username'];
@@ -1727,13 +1733,14 @@ if($user['trusteduser'] > 0) {
         else {        $priceproduct = $info_product[$x];}
     }
     if ($priceproduct > $user['Balance']) {
+        $minimumChargeFormatted = number_format(walletChargeMinimum($user));
         $confirmRenewKeyboard = json_encode([
             'inline_keyboard' => [
                 [['text' => '✅ متوجه شدم، ادامه می‌دهم', 'callback_data' => 'confirm_wallet_charge']],
                 [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser']],
             ]
         ]);
-        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.\n\nبرای شارژ کیف پول روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
+        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>{$minimumChargeFormatted} تومان</b> وجود ندارد.\n\nبرای شارژ کیف پول روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
         return;
     }
      step('home', $from_id);     
@@ -1990,10 +1997,11 @@ if (!empty($setting['Channel_Report'])) {
 #-------------------[ text_Add_Balance ]---------------------#
 if ($datain == "confirm_wallet_charge") {
     $mehrab = number_format($user['Balance']);
+    $minimumChargeFormatted = number_format(walletChargeMinimum($user));
     $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
 
 💸 چه مبلغی می‌خواهید شارژ کنید؟
-✅ حداقل مبلغ ۴۵۰,۰۰۰ تومان می‌باشد";
+✅ حداقل مبلغ {$minimumChargeFormatted} تومان می‌باشد";
     sendmessage($from_id, $priceinput, $backuser, 'HTML');
     step('getprice', $from_id);
 }
@@ -2016,10 +2024,11 @@ if ($text == $datatextbot['text_Add_Balance']) {
             ]
         ]
     ]);
+    $minimumChargeFormatted = number_format(walletChargeMinimum($user));
     $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
 
 ⚠️ <b>توجه:</b>
-به دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.
+به دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>{$minimumChargeFormatted} تومان</b> وجود ندارد.
 
 برای ادامه روی دکمه زیر کلیک کنید:";
     sendmessage($from_id, $priceinput, $confirmKeyboard, 'HTML');
@@ -2027,8 +2036,11 @@ if ($text == $datatextbot['text_Add_Balance']) {
    // $text = $datain;
     if (!is_numeric($text))
         return sendmessage($from_id, $textbotlang['users']['Balance']['errorprice'], null, 'HTML');
-    if ($text > 3000000 or $text < 450000)
-        return sendmessage($from_id, $textbotlang['users']['Balance']['errorpricelimit'], null, 'HTML');
+    $minimumCharge = walletChargeMinimum($user);
+    if ($text > 3000000 or $text < $minimumCharge) {
+        $minimumChargeFormatted = number_format($minimumCharge);
+        return sendmessage($from_id, "❌ مبلغ نامعتبر است.\n\nحداقل مبلغ شارژ {$minimumChargeFormatted} تومان و حداکثر ۳,۰۰۰,۰۰۰ تومان می‌باشد.", null, 'HTML');
+    }
     update("user", "Processing_value", $text, "id", $from_id);
     sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
     step('get_step_payment', $from_id);
