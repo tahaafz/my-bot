@@ -8,7 +8,17 @@ function xui_cookie_path(string $url = 'default'): string {
 
 function xui_cookie_is_valid(string $url): bool {
     $path = xui_cookie_path($url);
-    return file_exists($path) && filesize($path) > 0 && filemtime($path) >= (time() - 86400);
+    if (!file_exists($path) || filemtime($path) < (time() - 86400)) {
+        return false;
+    }
+
+    foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        if ($line[0] !== '#' || strpos($line, '#HttpOnly_') === 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function xui_cookie_cleanup(string $url = 'default'): void {
@@ -54,56 +64,65 @@ function login($url,$username,$password,$force = false){
     return json_decode($response,true);
 }
 
+function xui_request(array $panel, string $method, string $path, $postFields = null, array $headers = array('Accept: application/json')): array {
+    $url = rtrim($panel['url_panel'], '/');
+    login($url, $panel['username_panel'], $panel['password_panel']);
+
+    $request = function () use ($url, $method, $path, $postFields, $headers) {
+        $curl = curl_init();
+        $options = array(
+            CURLOPT_URL => $url . $path,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => $method,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_COOKIEFILE => xui_cookie_path($url),
+            CURLOPT_COOKIEJAR => xui_cookie_path($url),
+            CURLOPT_SSL_VERIFYPEER => false,
+        );
+        if ($postFields !== null) {
+            $options[CURLOPT_POSTFIELDS] = $postFields;
+        }
+        curl_setopt_array($curl, $options);
+        $raw = curl_exec($curl);
+        $error = curl_error($curl);
+        $httpCode = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        return array(
+            'body' => $raw,
+            'error' => $error,
+            'http_code' => $httpCode,
+        );
+    };
+
+    $response = $request();
+    if (in_array($response['http_code'], array(401, 403, 404), true) || $response['body'] === false || $response['body'] === '') {
+        login($url, $panel['username_panel'], $panel['password_panel'], true);
+        $response = $request();
+    }
+
+    return $response;
+}
+
 
 function get_Client($username,$namepanel){
     global $connect;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $namepanel,"select");
-    login($marzban_list_get['url_panel'],$marzban_list_get['username_panel'],$marzban_list_get['password_panel']);
-    $curl = curl_init();
-
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel'].'/panel/api/inbounds/getClientTraffics/'.$username,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'GET',
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json'
-        ),
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-    ));
-    $raw = curl_exec($curl);
-    curl_close($curl);
-    $decoded = json_decode($raw, true);
+    $response = xui_request($marzban_list_get, 'GET', '/panel/api/inbounds/getClientTraffics/' . rawurlencode($username));
+    $decoded = json_decode($response['body'], true);
     return isset($decoded['obj']) ? $decoded['obj'] : null;
 }
 function get_clinets($username,$namepanel){
     global $connect;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $namepanel,"select");
-    login($marzban_list_get['url_panel'],$marzban_list_get['username_panel'],$marzban_list_get['password_panel']);
-    $curl = curl_init();
-
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel'].'/panel/api/inbounds/list',
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'GET',
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json'
-        ),
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-    ));
     $output = [];
-    $raw = curl_exec($curl);
-    curl_close($curl);
-    $decoded = json_decode($raw, true);
+    $response = xui_request($marzban_list_get, 'GET', '/panel/api/inbounds/list');
+    $decoded = json_decode($response['body'], true);
     $response = $decoded['obj'] ?? [];
     foreach ($response as $client) {
         $clients = json_decode($client['settings'] ?? '{}', true)['clients'] ?? [];
@@ -124,7 +143,6 @@ function addClient($namepanel, $usernameac, $Expire,$Total, $Uuid,$Flow,$subid){
         $random_number = rand(1000000, 9999999);
         $username_ac = $usernameac . $random_number;
     }
-    login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
     $config = array(
         "id" => intval($marzban_list_get['inboundid']),
         'settings' => json_encode(array(
@@ -146,29 +164,11 @@ function addClient($namepanel, $usernameac, $Expire,$Total, $Uuid,$Flow,$subid){
     );
 
     $configpanel = json_encode($config,true);
-
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel'].'/panel/api/inbounds/addClient',
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_POSTFIELDS => $configpanel,
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json',
-            'Content-Type: application/json',
-        ),
+    $response = xui_request($marzban_list_get, 'POST', '/panel/api/inbounds/addClient', $configpanel, array(
+        'Accept: application/json',
+        'Content-Type: application/json',
     ));
-    $response = curl_exec($curl);
-
-    curl_close($curl);
-    return json_decode($response, true);
+    return json_decode($response['body'], true);
 }
 function updateClient($namepanel, $username,array $config){
     global $connect;
@@ -185,107 +185,31 @@ function updateClient($namepanel, $username,array $config){
         $clientId = $UsernameData['id'];
     }
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $namepanel,"select");
-    login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
     $configpanel = json_encode($config,true);
-
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel'].'/panel/api/inbounds/updateClient/'.$clientId,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_POSTFIELDS => $configpanel,
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json',
-            'Content-Type: application/json',
-        ),
+    $response = xui_request($marzban_list_get, 'POST', '/panel/api/inbounds/updateClient/' . rawurlencode($clientId), $configpanel, array(
+        'Accept: application/json',
+        'Content-Type: application/json',
     ));
-
-    $response = curl_exec($curl);
-
-    curl_close($curl);
-    return json_decode($response, true);
+    return json_decode($response['body'], true);
 }
 function ResetUserDataUsagex_uisin($usernamepanel, $namepanel){
     global $connect;
     $data_user = get_clinets($usernamepanel,$namepanel);
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $namepanel,"select");
-    login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel']."/panel/api/inbounds/{$marzban_list_get['inboundid']}/resetClientTraffic/".$data_user['email'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json',
-        ),
-
-    ));
-
-    $response = curl_exec($curl);
-    curl_close($curl);
+    xui_request($marzban_list_get, 'POST', "/panel/api/inbounds/{$marzban_list_get['inboundid']}/resetClientTraffic/" . rawurlencode($data_user['email']));
 }
 function removeClient($location,$username){
     global $connect;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
-    login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
     $data_user = get_clinets($username,$location);
-    login($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel']."/panel/api/inbounds/{$marzban_list_get['inboundid']}/delClient/".$data_user['id'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json',
-        ),
-    ));
-
-    $response = json_decode(curl_exec($curl),true);
-    curl_close($curl);
-    return $response;
+    $response = xui_request($marzban_list_get, 'POST', "/panel/api/inbounds/{$marzban_list_get['inboundid']}/delClient/" . rawurlencode($data_user['id']));
+    return json_decode($response['body'],true);
 }
 function get_onlinecli($name_panel,$username){
     global $connect;
     $marzban_list_get = select("marzban_panel", "*", "name_panel", $name_panel,"select");
-    login($marzban_list_get['url_panel'],$marzban_list_get['username_panel'],$marzban_list_get['password_panel']);
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => $marzban_list_get['url_panel'].'/panel/api/inbounds/onlines',
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => 'POST',
-        CURLOPT_HTTPHEADER => array(
-            'Accept: application/json'
-        ),
-        CURLOPT_COOKIEFILE => xui_cookie_path($marzban_list_get['url_panel']),
-    ));
-    $raw = curl_exec($curl);
-    curl_close($curl);
-    $decoded = json_decode($raw, true);
+    $response = xui_request($marzban_list_get, 'POST', '/panel/api/inbounds/onlines');
+    $decoded = json_decode($response['body'], true);
     $response = $decoded['obj'] ?? null;
     if($response == null)return "offline";
     if(in_array($username,$response))return "online";
