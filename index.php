@@ -2041,52 +2041,26 @@ if ($text == $datatextbot['text_Add_Balance']) {
     if ($datain == "cart_to_offline") {
         $PaySetting = select("PaySetting", "ValuePay", "NamePay", "CartDescription", "select")['ValuePay'];
         $Processing_value = number_format($user['Processing_value']);
-    if($user['trusteduser'] == 2){
-                $textcart = "برای افزایش موجودی به صورت دستی، مبلغ $Processing_value  تومان  را به شماره‌ی حساب زیر واریز کنید 👇🏻
-    
-    ==================== 
-    🔰 `$CartDescription2` - $CartName2
-    ====================
-    
-🌅 عکس رسید خود را در این مرحله ارسال نمایید. 
-    
-⚠️ حداقل واریز مبلغ 50 هزارتومان است.
-⚠️ مسئولیت واریز اشتباهی با شماست.";
-    }    elseif($user['trusteduser'] == 3){
-                $textcart = "برای افزایش موجودی به صورت دستی، مبلغ $Processing_value  تومان  را به شماره‌ی حساب زیر واریز کنید 👇🏻
-    
-    ==================== 
-    🔰 `$CartDescription3` - $CartName3
-    ====================
-    
-🌅 عکس رسید خود را در این مرحله ارسال نمایید. 
-    
-⚠️ حداقل واریز مبلغ 50 هزارتومان است.
-⚠️ مسئولیت واریز اشتباهی با شماست.";
-    }
-elseif ($user['Processing_value'] >= 1000000 || $user['Processing_value'] < 240000) {
+        $cardDescription = $CartDescription;
+        $cardName = $CartName;
+        $trustedLevel = (int)$user['trusteduser'];
+        $trustedCardLevels = [1, 2, 3, 11, 12, 13, 14, 15, 16];
+        if (in_array($trustedLevel, $trustedCardLevels, true)) {
+            $descriptionKey = "CartDescription{$trustedLevel}";
+            $nameKey = "CartName{$trustedLevel}";
+            $cardDescription = $GLOBALS[$descriptionKey] ?? $cardDescription;
+            $cardName = $GLOBALS[$nameKey] ?? $cardName;
+        }
         $textcart = "برای افزایش موجودی به صورت دستی، مبلغ $Processing_value  تومان  را به شماره‌ی حساب زیر واریز کنید 👇🏻
     
     ==================== 
-    🔰 `$CartDescription` - $CartName
+    🔰 `$cardDescription` - $cardName
     ====================
     
 🌅 عکس رسید خود را در این مرحله ارسال نمایید. 
     
 ⚠️ حداقل واریز مبلغ 50 هزارتومان است.
 ⚠️ مسئولیت واریز اشتباهی با شماست.";
-} else {
-            $textcart = "برای افزایش موجودی به صورت دستی، مبلغ $Processing_value  تومان  را به شماره‌ی حساب زیر واریز کنید 👇🏻
-    
-    ==================== 
-    🔰 `$CartDescription1` - $CartName1
-    ====================
-    
-🌅 عکس رسید خود را در این مرحله ارسال نمایید. 
-    
-⚠️ حداقل واریز مبلغ 50 هزارتومان است.
-⚠️ مسئولیت واریز اشتباهی با شماست.";
-}
         $paymentMessage = sendmessage($from_id, $textcart, $backuser, 'Markdown');
         $paymentMessageId = $paymentMessage->result->message_id ?? null;
         if ($paymentMessageId !== null) {
