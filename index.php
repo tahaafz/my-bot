@@ -871,8 +871,8 @@ telegram('sendMessage', [
 	    $userBalance = (int)$user['Balance'];
 		    if ($userBalance < $priceProduct) {
 		        $Balance_prim = $priceProduct - $userBalance;
-		        if ($Balance_prim < 50000)
-		            $Balance_prim = 50000;
+		        if ($Balance_prim < 450000)
+		            $Balance_prim = 450000;
 		        $stmt = $pdo->prepare("UPDATE user SET Processing_value = :needed_balance, Processing_value_one = 'none' WHERE id = :id AND Processing_value_one = :code_product");
 		        $stmt->execute([
 		            ':needed_balance' => $Balance_prim,
@@ -882,9 +882,14 @@ telegram('sendMessage', [
 		        if ($stmt->rowCount() === 0) {
 		            return;
 		        }
-		        //  sendmessage($from_id, $textbotlang['users']['Balance']['priceinput2'], $backuser, 'HTML');
-		        //step('getprice', $from_id);
-		        sendmessage($from_id, $textbotlang['users']['sell']['None-credit'], $step_payment, 'HTML');
+		        $Balance_prim_fmt = number_format($Balance_prim);
+		        $confirmRenewKeyboard = json_encode([
+		            'inline_keyboard' => [
+		                [['text' => '✅ متوجه شدم، ادامه می‌دهم', 'callback_data' => 'confirm_wallet_renew']],
+		                [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser']],
+		            ]
+		        ]);
+		        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.\n\n💰 مبلغ مورد نیاز برای شارژ: <b>{$Balance_prim_fmt} تومان</b>\n\nبرای انتخاب روش پرداخت روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
 	        step('get_step_payment', $from_id);
 	        return;
 	    }
@@ -1725,18 +1730,20 @@ if($user['trusteduser'] > 0) {
     }
     if ($priceproduct > $user['Balance']) {
         $Balance_prim = $priceproduct - $user['Balance'];
-        if ($Balance_prim < 50000){
-            $Balance_prim = 50000;
-        } 
+        if ($Balance_prim < 450000){
+            $Balance_prim = 450000;
+        }
         update("user", "Processing_value", $Balance_prim, "id", $from_id);
-    if($user['trusteduser'] > 0) {
-        sendmessage($from_id, $textbotlang['users']['Balance']['priceinput'], $backuser, 'HTML');
-    step('getprice', $from_id);
-    return;    }  else{
-
-    sendmessage($from_id, $textbotlang['users']['sell']['None-credit'], $step_payment, 'HTML');
+        $Balance_prim_fmt = number_format($Balance_prim);
+        $confirmRenewKeyboard = json_encode([
+            'inline_keyboard' => [
+                [['text' => '✅ متوجه شدم، ادامه می‌دهم', 'callback_data' => 'confirm_wallet_renew']],
+                [['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser']],
+            ]
+        ]);
+        sendmessage($from_id, "🚨 موجودی حساب کاربری شما کافی نمی‌باشد.\n\n⚠️ <b>توجه:</b>\nبه دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.\n\n💰 مبلغ مورد نیاز برای شارژ: <b>{$Balance_prim_fmt} تومان</b>\n\nبرای انتخاب روش پرداخت روی دکمه زیر کلیک کنید:", $confirmRenewKeyboard, 'HTML');
         step('get_step_payment', $from_id);
-        return;}
+        return;
     }
      step('home', $from_id);     
     $username_ac = $user['Processing_value_tow'];
@@ -1990,6 +1997,10 @@ if (!empty($setting['Channel_Report'])) {
 
 
 #-------------------[ text_Add_Balance ]---------------------#
+if ($datain == "confirm_wallet_renew") {
+    sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
+}
+
 if ($datain == "confirm_wallet_charge") {
     $mehrab = number_format($user['Balance']);
     $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
