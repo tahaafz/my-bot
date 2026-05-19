@@ -214,6 +214,72 @@ if ($datain == "confirmchannel") {
     }
     return;
 }
+if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
+    $trustLevel = (int)$trustMatch[1];
+    update("user", "trusteduser", $trustLevel, "id", $from_id);
+
+    $panelOrdersAdded = [];
+    $panelOrdersFailed = [];
+    $balanceAdded = 0;
+    if (!empty($trustMatch[2])) {
+        $parts = array_values(array_filter(explode('_', ltrim($trustMatch[2], '_'))));
+        $panParts = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^bal(\d+)$/', $part, $balMatch)) {
+                $balanceAdded = (int)$balMatch[1];
+            } else {
+                $panParts[] = $part;
+            }
+        }
+        if ($balanceAdded > 0) {
+            $pdo->prepare("UPDATE user SET Balance = Balance + :bal WHERE id = :id")
+                ->execute([':bal' => $balanceAdded, ':id' => $from_id]);
+        }
+        $panelStmt = $pdo->query("SELECT name_panel FROM marzban_panel WHERE status = 1 ORDER BY id ASC");
+        $panels = [];
+        while ($p = $panelStmt->fetch(PDO::FETCH_ASSOC)) {
+            $panels[] = $p['name_panel'];
+        }
+        for ($i = 0; $i + 1 < count($panParts); $i += 2) {
+            if (!preg_match('/^pan(\d+)$/', $panParts[$i], $panMatch)) continue;
+            $panIndex = (int)$panMatch[1] - 1;
+            $orderUsername = $panParts[$i + 1];
+            if (!isset($panels[$panIndex]) || empty($orderUsername)) continue;
+            $panelName = $panels[$panIndex];
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM invoice WHERE username = :u");
+            $chk->execute([':u' => $orderUsername]);
+            if ((int)$chk->fetchColumn() > 0) {
+                $panelOrdersFailed[] = "$orderUsername (تکراری)";
+                continue;
+            }
+            $invoiceId = bin2hex(random_bytes(8));
+            $ins = $pdo->prepare("INSERT INTO invoice (id_user, id_invoice, username, time_sell, Service_location, name_product, price_product, Volume, Service_time, status) VALUES (:id_user, :id_invoice, :username, :time_sell, :location, 'اضافه شده توسط ادمین', 0, 0, 0, 'active')");
+            $ins->execute([':id_user' => $from_id, ':id_invoice' => $invoiceId, ':username' => $orderUsername, ':time_sell' => time(), ':location' => $panelName]);
+            if ($ins->rowCount() > 0) $panelOrdersAdded[] = "$orderUsername → $panelName";
+            else $panelOrdersFailed[] = "$orderUsername (خطا)";
+        }
+    }
+    sendmessage($from_id, $datatextbot['text_start'], $keyboard, 'html');
+    step('home', $from_id);
+    $report = "🔑 کاربر جدید از طریق لینک تراستد وارد شد.\n\n"
+        . "👤 یوزرنیم: @$username\n"
+        . "🆔 آیدی: <code>$from_id</code>\n"
+        . "⭐️ سطح تراستد: <code>$trustLevel</code>";
+    if ($balanceAdded > 0) {
+        $report .= "\n💰 موجودی اضافه شده: <code>" . number_format($balanceAdded) . "</code> تومان";
+    }
+    if (!empty($panelOrdersAdded)) {
+        $report .= "\n\n📦 سفارش‌های اضافه شده:\n" . implode("\n", array_map(function($o) { return "• $o"; }, $panelOrdersAdded));
+    }
+    if (!empty($panelOrdersFailed)) {
+        $report .= "\n\n⚠️ سفارش‌های ناموفق:\n" . implode("\n", array_map(function($o) { return "• $o"; }, $panelOrdersFailed));
+    }
+    foreach ($admin_ids as $admin) {
+        sendmessage($admin, $report, null, 'HTML');
+    }
+    return;
+}
+
 if ($channels == false) {
     unset($channels);
     $channels['Channel_lock'] = "off";
@@ -242,79 +308,6 @@ if ($text == "✅ قوانین را می پذیرم") {
     sendmessage($from_id, $textbotlang['users']['Rules'], $keyboard, 'html');
     $confrim = true;
     update("user", "roll_Status", $confrim, "id", $from_id);
-}
-
-
-if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
-    $trustLevel = (int)$trustMatch[1];
-    update("user", "trusteduser", $trustLevel, "id", $from_id);
-
-    $panelOrdersAdded = [];
-    $panelOrdersFailed = [];
-        $balanceAdded = 0;
-    if (!empty($trustMatch[2])) {
-        $parts = array_values(array_filter(explode('_', ltrim($trustMatch[2], '_'))));
-        
-        // extract bal{amount} if present
-        $panParts = [];
-        foreach ($parts as $part) {
-            if (preg_match('/^bal(\d+)$/', $part, $balMatch)) {
-                $balanceAdded = (int)$balMatch[1];
-            } else {
-                $panParts[] = $part;
-            }
-        }
-
-        if ($balanceAdded > 0) {
-            $pdo->prepare("UPDATE user SET Balance = Balance + :bal WHERE id = :id")
-                ->execute([':bal' => $balanceAdded, ':id' => $from_id]);
-        }
-
-        $panelStmt = $pdo->query("SELECT name_panel FROM marzban_panel WHERE status = 1 ORDER BY id ASC");
-        $panels = [];
-        while ($p = $panelStmt->fetch(PDO::FETCH_ASSOC)) {
-            $panels[] = $p['name_panel'];
-        }
-         for ($i = 0; $i + 1 < count($panParts); $i += 2) {
-            if (!preg_match('/^pan(\d+)$/', $panParts[$i], $panMatch)) continue;
-            $panIndex = (int)$panMatch[1] - 1;
-            $orderUsername = $panParts[$i + 1];
-            if (!isset($panels[$panIndex]) || empty($orderUsername)) continue;
-            $panelName = $panels[$panIndex];
-            $chk = $pdo->prepare("SELECT COUNT(*) FROM invoice WHERE username = :u");
-            $chk->execute([':u' => $orderUsername]);
-            if ((int)$chk->fetchColumn() > 0) {
-                $panelOrdersFailed[] = "$orderUsername (تکراری)";
-                continue;
-            }
-            $invoiceId = bin2hex(random_bytes(8));
-            $ins = $pdo->prepare("INSERT INTO invoice (id_user, id_invoice, username, time_sell, Service_location, name_product, price_product, Volume, Service_time, status) VALUES (:id_user, :id_invoice, :username, :time_sell, :location, 'اضافه شده توسط ادمین', 0, 0, 0, 'active')");
-            $ins->execute([':id_user' => $from_id, ':id_invoice' => $invoiceId, ':username' => $orderUsername, ':time_sell' => time(), ':location' => $panelName]);
-            if ($ins->rowCount() > 0) $panelOrdersAdded[] = "$orderUsername → $panelName";
-            else $panelOrdersFailed[] = "$orderUsername (خطا)";
-        }
-    }
-
-    sendmessage($from_id, $datatextbot['text_start'], $keyboard, 'html');
-    step('home', $from_id);
-    $report = "🔑 کاربر جدید از طریق لینک تراستد وارد شد.\n\n"
-        . "👤 یوزرنیم: @$username\n"
-        . "🆔 آیدی: <code>$from_id</code>\n"
-        . "⭐️ سطح تراستد: <code>$trustLevel</code>";
-        
-            if ($balanceAdded > 0) {
-        $report .= "\n💰 موجودی اضافه شده: <code>" . number_format($balanceAdded) . "</code> تومان";
-    }
-    if (!empty($panelOrdersAdded)) {
-        $report .= "\n\n📦 سفارش‌های اضافه شده:\n" . implode("\n", array_map(function($o) { return "• $o"; }, $panelOrdersAdded));
-    }
-    if (!empty($panelOrdersFailed)) {
-        $report .= "\n\n⚠️ سفارش‌های ناموفق:\n" . implode("\n", array_map(function($o) { return "• $o"; }, $panelOrdersFailed));
-    }
-    foreach ($admin_ids as $admin) {
-        sendmessage($admin, $report, null, 'HTML');
-    }
-    return;
 }
 
 
