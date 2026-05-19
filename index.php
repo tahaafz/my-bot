@@ -1990,6 +1990,16 @@ if (!empty($setting['Channel_Report'])) {
 
 
 #-------------------[ text_Add_Balance ]---------------------#
+if ($datain == "confirm_wallet_charge") {
+    $mehrab = number_format($user['Balance']);
+    $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
+
+💸 چه مبلغی می‌خواهید شارژ کنید؟
+✅ حداقل مبلغ ۴۵۰,۰۰۰ تومان می‌باشد";
+    sendmessage($from_id, $priceinput, $backuser, 'HTML');
+    step('getprice', $from_id);
+}
+
 if ($text == $datatextbot['text_Add_Balance']) {
     if ($setting['get_number'] == "✅ تایید شماره موبایل روشن است" && $user['step'] != "get_number" && $user['number'] == "none") {
         sendmessage($from_id, $textbotlang['users']['number']['Confirming'], $request_contact, 'HTML');
@@ -1997,18 +2007,29 @@ if ($text == $datatextbot['text_Add_Balance']) {
     }
     if ($user['number'] == "none" && $setting['get_number'] == "✅ تایید شماره موبایل روشن است")
         return;
-        $mehrab = number_format($user['Balance']);
-        $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
+    $mehrab = number_format($user['Balance']);
+    $confirmKeyboard = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '✅ متوجه شدم، ادامه می‌دهم', 'callback_data' => 'confirm_wallet_charge'],
+            ],
+            [
+                ['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser'],
+            ]
+        ]
+    ]);
+    $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
 
-💸برای افزایش موجودی مبلغ را به تومان وارد کنید:
-✅ حداقل مبلغ 50,000 هزار تومان می باشد";
-    sendmessage($from_id, $priceinput, $backuser, 'HTML');
-    step('getprice', $from_id);
+⚠️ <b>توجه:</b>
+به دلیل محدودیت بانکی، امکان شارژ کیف پول به مبلغ کمتر از <b>۴۵۰,۰۰۰ تومان</b> وجود ندارد.
+
+برای ادامه روی دکمه زیر کلیک کنید:";
+    sendmessage($from_id, $priceinput, $confirmKeyboard, 'HTML');
 } elseif ($user['step'] == "getprice") {
    // $text = $datain;
     if (!is_numeric($text))
         return sendmessage($from_id, $textbotlang['users']['Balance']['errorprice'], null, 'HTML');
-    if ($text > 2100000 or $text < 50000)
+    if ($text > 2100000 or $text < 450000)
         return sendmessage($from_id, $textbotlang['users']['Balance']['errorpricelimit'], null, 'HTML');
     update("user", "Processing_value", $text, "id", $from_id);
     sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
