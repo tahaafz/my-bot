@@ -94,7 +94,6 @@ class ManagePanel{
         }
         elseif($Get_Data_Panel['type'] == "x-ui_single"){
             $UsernameData = get_Client($username,$Get_Data_Panel['name_panel']);
-            $UsernameData2 = get_clinets($username,$Get_Data_Panel['name_panel']);
             if(!is_array($UsernameData) || empty($UsernameData['id'])){
                 $Output = array(
                     'status' => 'Unsuccessful',
