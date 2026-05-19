@@ -883,16 +883,21 @@ telegram('sendMessage', [
 	    if ($stmt->rowCount() === 0) {
 	        return;
 	    }
-	    $currentData = $ManagePanel->DataUser($nameloc['Service_location'], $serviceUsername);
+	    $currentData = null;
+    for ($di = 1; $di <= 3; $di++) {
+        $currentData = $ManagePanel->DataUser($nameloc['Service_location'], $serviceUsername);
+        if (!empty($currentData) && isset($currentData['username'])) break;
+        if ($di < 3) sleep(1);
+    }
     $remainingVolume = 0;
     if (!empty($currentData['data_limit'])) {
         $remainingVolume = max(0, ($currentData['data_limit'] ?? 0) - ($currentData['used_traffic'] ?? 0));
     }
-        
-        $preRemainGB  = round($remainingVolume / pow(1024, 3), 2);
-        $preLimitGB   = $currentData['data_limit']  ? round($currentData['data_limit']  / pow(1024, 3), 2) : 0;
-        $preUsedGB    = $currentData['used_traffic'] ? round($currentData['used_traffic'] / pow(1024, 3), 2) : 0;
-        $preExpire    = $currentData['expire'] ? date('Y/m/d', $currentData['expire']) : '—';
+    $dataFetched = !empty($currentData) && isset($currentData['username']);
+        $preRemainGB  = $dataFetched ? round($remainingVolume / pow(1024, 3), 2) : '—';
+        $preLimitGB   = ($dataFetched && $currentData['data_limit'])  ? round($currentData['data_limit']  / pow(1024, 3), 2) : '—';
+        $preUsedGB    = ($dataFetched && $currentData['used_traffic']) ? round($currentData['used_traffic'] / pow(1024, 3), 2) : '—';
+        $preExpire    = ($dataFetched && $currentData['expire']) ? date('Y/m/d', $currentData['expire']) : '—';
         $text_pre_report = "🔄 کاربر در حال تمدید سرویس است...
 
 🪪 آیدی عددی : <code>$from_id</code>
@@ -911,22 +916,22 @@ telegram('sendMessage', [
     
 
     $modifyResult = array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
- $maxRetries = 3;  
-   if ($marzban_list_get['type'] == "marzban" || $marzban_list_get['type'] == "x-ui_single") {  
- $date = strtotime("+" . $product['Service_time'] . "day");
+    $maxRetries = 5;
+    if ($marzban_list_get['type'] == "marzban" || $marzban_list_get['type'] == "x-ui_single") {
+        $date = strtotime("+" . $product['Service_time'] . "day");
         $newDate = strtotime(date("Y-m-d H:i:s", $date));
         $data_limit = $remainingVolume + intval($product['Volume_constraint']) * pow(1024, 3);
         $datam = array(
             "expire" => $newDate,
             "data_limit" => $data_limit
         );
-	    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             $modifyResult = $ManagePanel->Modifyuser($serviceUsername, $nameloc['Service_location'], $datam);
             if (is_array($modifyResult) && ($modifyResult['status'] ?? '') === 'successful') {
                 break;
             }
             if ($attempt < $maxRetries) {
-                sleep(2);
+                sleep(3);
             }
         }
     }
