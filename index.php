@@ -955,9 +955,7 @@ telegram('sendMessage', [
 	        sendmessage('501813541', "⚠️ خطا در تمدید سرویس\n\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>\n❌ خطای پنل: <code>$msgPanel</code>", null, 'HTML');
 	        return;
 	    }
-	    $ManagePanel->ResetUserDataUsage($nameloc['Service_location'], $serviceUsername);
-    
- $keyboardextendfnished = json_encode([
+    $keyboardextendfnished = json_encode([
         'inline_keyboard' => [
             [
                 ['text' => $textbotlang['users']['stateus']['backlist'], 'callback_data' => "backorder"],
