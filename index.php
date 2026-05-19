@@ -928,7 +928,9 @@ telegram('sendMessage', [
     if ($marzban_list_get['type'] == "marzban" || $marzban_list_get['type'] == "x-ui_single") {
         $date = strtotime("+" . $product['Service_time'] . "day");
         $newDate = strtotime(date("Y-m-d H:i:s", $date));
-        $data_limit = ($currentData['used_traffic'] ?? 0) + intval($product['Volume_constraint']) * pow(1024, 3);
+        $renewalVolume = (int)$product['Volume_constraint'] * 1024 * 1024 * 1024;
+        $currentLimit = (int)($currentData['data_limit'] ?? 0);
+        $data_limit = $currentLimit > 0 ? $currentLimit + $renewalVolume : $renewalVolume;
         $datam = array(
             "expire" => $newDate,
             "data_limit" => $data_limit
