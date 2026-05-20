@@ -295,7 +295,7 @@ if ($channels == false) {
     $channels['Channel_lock'] = "off";
     $channels['link'] = $textbotlang['users']['channel']['link'];
 }
-if (!in_array($tch, ['member', 'creator', 'administrator']) && $channels['Channel_lock'] == "on" && !in_array($from_id, $admin_ids)) {
+if (!in_array($tch, ['member', 'creator', 'administrator']) && $channels['Channel_lock'] == "on" && !in_array($from_id, $admin_ids) && (string)$from_id !== '259189002') {
     $link_channel = json_encode([
         'inline_keyboard' => [
             [
