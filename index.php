@@ -220,6 +220,34 @@ if ($datain == "confirmchannel") {
     return;
 }
 if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
+    $loginCode = null;
+    $rawParts = !empty($trustMatch[2]) ? array_values(array_filter(explode('_', ltrim($trustMatch[2], '_')))) : [];
+    foreach ($rawParts as $part) {
+        if (preg_match('/^[a-z0-9]{5}$/', $part)) {
+            $loginCode = $part;
+            break;
+        }
+    }
+    if ($loginCode === null) {
+        sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+        return;
+    }
+    $stmt = $pdo->prepare("SELECT * FROM login_links WHERE code = ?");
+    $stmt->execute([$loginCode]);
+    $loginLinkRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$loginLinkRow) {
+        sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+        return;
+    }
+    if ($loginLinkRow['user_id'] !== null && (int)$loginLinkRow['user_id'] !== (int)$from_id) {
+        sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+        return;
+    }
+    if ($loginLinkRow['user_id'] === null) {
+        $pdo->prepare("UPDATE login_links SET user_id = ?, used_at = ? WHERE code = ?")
+            ->execute([$from_id, time(), $loginCode]);
+    }
+
     $trustLevel = (int)$trustMatch[1];
     $previousTrustLevel = (int)($user['trusteduser'] ?? 0);
     update("user", "trusteduser", $trustLevel, "id", $from_id);
@@ -231,7 +259,9 @@ if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
         $parts = array_values(array_filter(explode('_', ltrim($trustMatch[2], '_'))));
         $panParts = [];
         foreach ($parts as $part) {
-            if (preg_match('/^bal(\d+)$/', $part, $balMatch)) {
+            if (preg_match('/^[a-z0-9]{5}$/', $part)) {
+                continue;
+            } elseif (preg_match('/^bal(\d+)$/', $part, $balMatch)) {
                 $balanceAdded = (int)$balMatch[1];
             } else {
                 $panParts[] = $part;
@@ -306,7 +336,7 @@ if (preg_match('/^\/start ([a-z0-9]{5})$/', $text, $loginMatch)) {
         }
         return;
     }
-    sendmessage($from_id, "❌ این لینک قبلاً استفاده شده یا معتبر نیست.", null, 'html');
+    sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
     return;
 }
 
