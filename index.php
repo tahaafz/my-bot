@@ -1881,10 +1881,11 @@ $text_config
 🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";
 }
     // if ($marzban_list_get['sublink'] == "onsublink") {
-      if (!empty($output_config_link)) {  
+      if (!empty($output_config_link)) {
+        $qr_target = !empty($configqr) ? $configqr : $output_config_link;
         $urlimage = "$from_id$randomString.png";
         $writer = new PngWriter();
-        $qrCode = QrCode::create($output_config_link)
+        $qrCode = QrCode::create($qr_target)
             ->setEncoding(new Encoding('UTF-8'))
             ->setErrorCorrectionLevel(ErrorCorrectionLevel::Low)
             ->setSize(400)
