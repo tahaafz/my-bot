@@ -229,7 +229,12 @@ if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
         }
     }
     if ($loginCode === null) {
-        sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+        if ((int)($user['trusteduser'] ?? 0) >= 10) {
+            sendmessage($from_id, $datatextbot['text_start'], $keyboard, 'html');
+            step('home', $from_id);
+        } else {
+            sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+        }
         return;
     }
     $stmt = $pdo->prepare("SELECT * FROM login_links WHERE code = ?");
