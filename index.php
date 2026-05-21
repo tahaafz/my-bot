@@ -290,6 +290,26 @@ if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
     return;
 }
 
+if (preg_match('/^\/start ([a-z0-9]{5})$/', $text, $loginMatch)) {
+    $loginCode = $loginMatch[1];
+    $stmt = $pdo->prepare("SELECT * FROM login_links WHERE code = ? AND user_id IS NULL");
+    $stmt->execute([$loginCode]);
+    $loginLink = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($loginLink) {
+        $pdo->prepare("UPDATE login_links SET user_id = ?, used_at = ? WHERE code = ?")
+            ->execute([$from_id, time(), $loginCode]);
+        sendmessage($from_id, $datatextbot['text_start'], $keyboard, 'html');
+        step('home', $from_id);
+        $report = "🔗 یک کاربر با لینک ورود وارد شد.\n\n👤 یوزرنیم: @$username\n🆔 آیدی: <code>$from_id</code>\n🔑 کد: <code>$loginCode</code>";
+        foreach ($admin_ids as $admin) {
+            sendmessage($admin, $report, null, 'HTML');
+        }
+        return;
+    }
+    sendmessage($from_id, "❌ این لینک قبلاً استفاده شده یا معتبر نیست.", null, 'html');
+    return;
+}
+
 if ($channels == false) {
     unset($channels);
     $channels['Channel_lock'] = "off";
@@ -2714,6 +2734,12 @@ if ($text == "🔑 روشن / خاموش کردن قفل کانال") {
     } else {
         update("channels", "link", $text);
     }
+}
+if ($text == "🔗 ساخت لینک ورود") {
+    $code = substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 5);
+    $stmt = $pdo->prepare("INSERT INTO login_links (code, created_at) VALUES (?, ?)");
+    $stmt->execute([$code, time()]);
+    sendmessage($from_id, "🔗 لینک ورود یک‌بارمصرف ساخته شد:\n\nhttps://t.me/$usernamebot?start=$code\n\n🔑 کد: <code>$code</code>\n\nاین لینک فقط برای یک نفر قابل استفاده است.", $backadmin, 'HTML');
 }
 if ($text == "👨‍💻 اضافه کردن ادمین") {
     sendmessage($from_id, $textbotlang['Admin']['manageadmin']['getid'], $backadmin, 'HTML');
