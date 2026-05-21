@@ -38,7 +38,8 @@ class ManagePanel{
         elseif($Get_Data_Panel['type'] == "x-ui_single"){
             $subId = bin2hex(random_bytes(8));
             $Expireac = $expire*1000;
-            $data_Output = addClient($Get_Data_Panel['name_panel'],$usernameC,$Expireac,$data_limit,generateUUID(),"",$subId);
+            $uuid = generateUUID();
+            $data_Output = addClient($Get_Data_Panel['name_panel'],$usernameC,$Expireac,$data_limit,$uuid,"",$subId);
             if(!is_array($data_Output) || empty($data_Output['success'])){
                 $Output['status'] = 'Unsuccessful';
                 $Output['msg'] = is_array($data_Output) ? ($data_Output['msg'] ?? 'empty or unexpected response from panel') : 'empty or unexpected response from panel';
@@ -47,10 +48,15 @@ class ManagePanel{
                 $Output['username'] = $usernameC;
                 $domain = explode(":", $Get_Data_Panel['linksubx']);
                 $Output['subscription_url'] = $domain[0].":".$domain[1].":2096/sub/{$subId}?name=$subId";
-                $raw = outputlunk($Output['subscription_url']);
-                $decoded = base64_decode($raw, true);
-                $content = ($decoded !== false && !empty(trim($decoded))) ? trim($decoded) : trim($raw);
-                $Output['configs'] = array_values(array_filter(explode("\n", $content)));
+                $directLink = build_client_link($Get_Data_Panel['name_panel'], $uuid, $usernameC);
+                if ($directLink) {
+                    $Output['configs'] = [$directLink];
+                } else {
+                    $raw = outputlunk($Output['subscription_url']);
+                    $decoded = base64_decode($raw, true);
+                    $content = ($decoded !== false && !empty(trim($decoded))) ? trim($decoded) : trim($raw);
+                    $Output['configs'] = array_values(array_filter(explode("\n", $content)));
+                }
             }
         }
         else{

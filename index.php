@@ -1851,33 +1851,33 @@ if (!empty($setting['Channel_Report'])) {
         ]
     ]);
     if($user['trusteduser'] > 0) {
-      
+
     $textcreatuser = "✅ سرویس با موفقیت ایجاد شد
-    
+
 👤 نام کاربری سرویس : <code>$username_ac</code>
 🌿 نام سرویس: {$info_product['name_product']}
 ‏🇺🇳 لوکیشن: {$marzban_list_get['name_panel']}
 ⏳ مدت زمان: {$info_product['Service_time']}  روز
 🗜 حجم سرویس:  {$info_product['Volume_constraint']} گیگ
-    
+
 لینک اتصال:
-$text_config
 $link_config
-    
-🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";  
+$text_config
+
+🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";
     } else{
     $textcreatuser = "✅ سرویس با موفقیت ایجاد شد
-    
+
 👤 نام کاربری سرویس : <code>$username_ac</code>
 🌿 نام سرویس: {$info_product['name_product']}
 ‏🇺🇳 لوکیشن: {$marzban_list_get['name_panel']}
 ⏳ مدت زمان: {$info_product['Service_time']}  روز
 🗜 حجم سرویس:  {$info_product['Volume_constraint']} گیگ
-    
+
 لینک اتصال:
-$text_config
 $link_config
-    
+$text_config
+
 🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";
 }
     // if ($marzban_list_get['sublink'] == "onsublink") {

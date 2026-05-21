@@ -216,3 +216,69 @@ function get_onlinecli($name_panel,$username){
     return "offline";
 
 }
+
+function build_client_link($namepanel, $uuid, $email){
+    global $connect;
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $namepanel, "select");
+    $response = xui_request($marzban_list_get, 'GET', '/panel/api/inbounds/list');
+    $decoded = json_decode($response['body'], true);
+    $inbounds = $decoded['obj'] ?? [];
+    $inboundId = intval($marzban_list_get['inboundid']);
+    $inbound = null;
+    foreach ($inbounds as $item) {
+        if ((int)$item['id'] === $inboundId) {
+            $inbound = $item;
+            break;
+        }
+    }
+    if (!$inbound) return null;
+
+    $protocol = $inbound['protocol'] ?? 'vless';
+    $port = $inbound['port'] ?? 443;
+
+    $linksubx = $marzban_list_get['linksubx'] ?? '';
+    $parsed = parse_url(strpos($linksubx, '://') === false ? 'https://' . $linksubx : $linksubx);
+    $host = $parsed['host'] ?? '';
+
+    $streamSettings = json_decode($inbound['streamSettings'] ?? '{}', true);
+    $network = $streamSettings['network'] ?? 'tcp';
+    $security = $streamSettings['security'] ?? 'none';
+
+    $params = ['type' => $network, 'encryption' => 'none', 'security' => $security];
+
+    if ($security === 'tls') {
+        $tls = $streamSettings['tlsSettings'] ?? [];
+        if (!empty($tls['serverName'])) $params['sni'] = $tls['serverName'];
+        if (!empty($tls['fingerprint'])) $params['fp'] = $tls['fingerprint'];
+        if (!empty($tls['alpn'])) $params['alpn'] = implode(',', (array)$tls['alpn']);
+    } elseif ($security === 'reality') {
+        $reality = $streamSettings['realitySettings'] ?? [];
+        if (!empty($reality['serverName'])) $params['sni'] = $reality['serverName'];
+        if (!empty($reality['fingerprint'])) $params['fp'] = $reality['fingerprint'];
+        if (!empty($reality['publicKey'])) $params['pbk'] = $reality['publicKey'];
+        if (!empty($reality['shortIds'][0])) $params['sid'] = $reality['shortIds'][0];
+        if (!empty($reality['spiderX'])) $params['spx'] = $reality['spiderX'];
+        $params['flow'] = 'xtls-rprx-vision';
+    }
+
+    if ($network === 'ws') {
+        $ws = $streamSettings['wsSettings'] ?? [];
+        if (!empty($ws['path'])) $params['path'] = $ws['path'];
+        if (!empty($ws['headers']['Host'])) $params['host'] = $ws['headers']['Host'];
+    } elseif ($network === 'grpc') {
+        $grpc = $streamSettings['grpcSettings'] ?? [];
+        if (!empty($grpc['serviceName'])) $params['serviceName'] = $grpc['serviceName'];
+        $params['mode'] = 'gun';
+    } elseif ($network === 'h2' || $network === 'http') {
+        $http = $streamSettings['httpSettings'] ?? [];
+        if (!empty($http['path'])) $params['path'] = $http['path'];
+        if (!empty($http['host'][0])) $params['host'] = $http['host'][0];
+    } elseif ($network === 'tcp') {
+        $tcp = $streamSettings['tcpSettings'] ?? [];
+        $headerType = $tcp['header']['type'] ?? 'none';
+        if ($headerType !== 'none') $params['headerType'] = $headerType;
+    }
+
+    $query = http_build_query($params);
+    return "{$protocol}://{$uuid}@{$host}:{$port}?{$query}#" . rawurlencode($email);
+}
