@@ -126,7 +126,7 @@ function customErrorHandler($errno, $errstr, $errfile, $errline) {
 
 function walletChargeMinimum($user): int
 {
-    return (int)($user['trusteduser'] ?? 0) === 99 ? 450000 : 360000;
+    return (int)($user['trusteduser'] ?? 0) === 99 ? 500000 : 360000;
 }
 
 set_error_handler("customErrorHandler");
