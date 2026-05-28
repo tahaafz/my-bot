@@ -1617,10 +1617,10 @@ if ($text == $datatextbot['text_sell']) {
 //         sendmessage($from_id, $textproduct, $json_list_product_list, 'HTML');
 //         update("user", "Processing_value", $location['name_panel'], "id", $from_id);
     
-     $stmtRand = $pdo->prepare("SELECT * FROM marzban_panel WHERE (status IS NULL OR status = 1) ORDER BY RAND() LIMIT 1");
-    $stmtRand->execute();
-    $randomPanel = $stmtRand->fetch(PDO::FETCH_ASSOC);
-    if (!$randomPanel) {
+    $stmtPanelCount = $pdo->prepare("SELECT COUNT(*) FROM marzban_panel WHERE (status IS NULL OR status = 1)");
+    $stmtPanelCount->execute();
+    $panelCount = $stmtPanelCount->fetchColumn();
+    if ($panelCount == 0) {
         sendmessage($from_id, $textbotlang['Admin']['managepanel']['nullpanel'], null, 'HTML');
         return;
     }
@@ -1629,28 +1629,7 @@ if ($text == $datatextbot['text_sell']) {
         sendmessage($from_id, $textbotlang['Admin']['Product']['nullpProduct'], null, 'HTML');
         return;
     }
-    $location = $randomPanel['name_panel'];
-    update("user", "Processing_value", $location, "id", $from_id);
-    $stmt = $pdo->prepare("SELECT * FROM product WHERE Location = :location OR Location = '/all'");
-    $stmt->bindParam(':location', $location, PDO::PARAM_STR);
-    $stmt->execute();
-    $product = ['inline_keyboard' => []];
-    while ($result = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($randomPanel['MethodUsername'] == "نام کاربری دلخواه") {
-            $product['inline_keyboard'][] = [
-                ['text' => $result['name_product'], 'callback_data' => "prodcutservices_" . $result['code_product']]
-            ];
-        } else {
-            $product['inline_keyboard'][] = [
-                ['text' => $result['name_product'], 'callback_data' => "prodcutservice_{$result['code_product']}"]
-            ];
-        }
-    }
-    $product['inline_keyboard'][] = [
-        ['text' => "🏠 بازگشت به منوی اصلی", 'callback_data' => "backuser"]
-    ];
-    $json_list_product_list = json_encode($product);
-    sendmessage($from_id, $textbotlang['users']['sell']['Service-select'], $json_list_product_list, 'HTML');
+    sendmessage($from_id, $textbotlang['users']['Service']['Location'], $list_marzban_panel_user, 'HTML');
 } elseif (preg_match('/^location_(.*)/', $datain, $dataget)) {
     $location = $dataget[1];
     $panellist = select("marzban_panel", "*", "name_panel", $location, "select");
