@@ -126,7 +126,7 @@ function customErrorHandler($errno, $errstr, $errfile, $errline) {
 
 function walletChargeMinimum($user): int
 {
-    return (int)($user['trusteduser'] ?? 0) === 99 ? 500000 : 360000;
+    return 250000;
 }
 
 set_error_handler("customErrorHandler");
@@ -377,15 +377,10 @@ if ($text == "✅ قوانین را می پذیرم") {
 
 
 #-----------Bot_Status------------#
-// if ($setting['Bot_Status'] == "❌ ربات خاموش است" && !in_array($from_id, $admin_ids)) {
-//     sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
-//     return;
-// }
-if (!in_array($from_id, $admin_ids) && intval($user['trusteduser']) < 10) {                     
-    sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');                          
-    return;                                                                                     
-    
-} 
+if ($setting['Bot_Status'] == "❌ ربات خاموش است" && !in_array($from_id, $admin_ids) && intval($user['trusteduser']) < 10) {
+    sendmessage($from_id, $datatextbot['text_bot_off'], null, 'html');
+    return;
+}
 #-----------/start------------#
 
 if ($text == "/start") {
@@ -2091,6 +2086,10 @@ if ($text == $datatextbot['text_Add_Balance']) {
         $cardDescription = $CartDescription;
         $cardName = $CartName;
         $trustedLevel = (int)$user['trusteduser'];
+        $trustedCardMap = [98 => 1];
+        if (isset($trustedCardMap[$trustedLevel])) {
+            $trustedLevel = $trustedCardMap[$trustedLevel];
+        }
         $trustedCardLevels = [1, 2, 3, 11, 12, 13, 14, 15, 16];
         if (in_array($trustedLevel, $trustedCardLevels, true)) {
             $descriptionKey = "CartDescription{$trustedLevel}";
