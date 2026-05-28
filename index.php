@@ -1187,8 +1187,6 @@ if (!empty($setting['Channel_Report'])) {
 }
 #-----------usertest------------#
 if ($text == $datatextbot['text_usertest'] || strpos($text, "/start ") !== false) {
-     sendmessage($from_id, "⛔️ اکانت تست در حال حاضر غیرفعال است.", $keyboard, 'HTML');  
-      return;          
     $locationproduct = select("marzban_panel", "*", null, null, "count");
     if ($locationproduct == 0) {
         sendmessage($from_id, $textbotlang['Admin']['managepanel']['nullpanel'], null, 'HTML');
@@ -1204,7 +1202,8 @@ if ($text == $datatextbot['text_usertest'] || strpos($text, "/start ") !== false
         sendmessage($from_id, $textbotlang['users']['usertest']['limitwarning'], $keyboard, 'html');
         return;
     }
-    sendmessage($from_id, $textbotlang['users']['Service']['Location'], $list_marzban_usertest, 'html');
+    $panel9 = select("marzban_panel", "*", "id", 9, "select");
+    $datain = "locationtests_" . $panel9['name_panel'];
 }
 if ($user['step'] == "createusertest" || preg_match('/locationtests_(.*)/', $datain, $dataget)) {
     if ($user['limit_usertest'] <= 0) {
