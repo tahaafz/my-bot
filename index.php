@@ -1009,7 +1009,12 @@ telegram('sendMessage', [
         $newDate = strtotime(date("Y-m-d H:i:s", $date));
         $renewalVolume = (int)$product['Volume_constraint'] * 1024 * 1024 * 1024;
         $currentLimit = (int)($currentData['data_limit'] ?? 0);
-        $data_limit = $currentLimit > 0 ? $currentLimit + $renewalVolume : $renewalVolume;
+        $renewMode = $marzban_list_get['renew_mode'] ?? 'addvolume';
+        if ($renewMode === 'replaceVolume') {
+            $data_limit = $renewalVolume;
+        } else {
+            $data_limit = $currentLimit > 0 ? $currentLimit + $renewalVolume : $renewalVolume;
+        }
         $datam = array(
             "expire" => $newDate,
             "data_limit" => $data_limit
@@ -4313,6 +4318,41 @@ if ($datain == "selldisable") {
         ]
     ]);
     Editmessagetext($from_id, $message_id, "🛒 قابلیت خرید اشتراک جدید\n\nوضعیت: ✅ فعال\n\nاین پنل در لیست خرید اشتراک نمایش داده می‌شود.", $sellKeyboard);
+}
+#----------------[ renew_mode toggle ]------------------#
+if ($text == "🔄 حالت تمدید سرویس") {
+    $panel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    if (empty($panel['renew_mode'])) {
+        update("marzban_panel", "renew_mode", "addvolume", "name_panel", $user['Processing_value']);
+        $panel['renew_mode'] = "addvolume";
+    }
+    $isAdd = ($panel['renew_mode'] ?? 'addvolume') === 'addvolume';
+    $renewModeKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => $isAdd ? '➕ جمع با باقی‌مانده (فعلی — کلیک برای تغییر)' : '🔃 جایگزینی کامل (فعلی — کلیک برای تغییر)', 'callback_data' => $isAdd ? 'renewreplace' : 'renewadd']]
+        ]
+    ]);
+    sendmessage($from_id,
+        "🔄 حالت تمدید سرویس\n\nوضعیت فعلی: " . ($isAdd ? '➕ جمع با حجم باقی‌مانده' : '🔃 جایگزینی کامل') .
+        "\n\n<b>➕ جمع:</b> حجم جدید به حجم باقی‌مانده کاربر اضافه می‌شود.\n<b>🔃 جایگزینی:</b> حجم قبلی حذف و فقط حجم سرویس جدید جایگزین می‌شود.",
+        $renewModeKeyboard, 'HTML');
+}
+if ($datain == "renewreplace") {
+    update("marzban_panel", "renew_mode", "replaceVolume", "name_panel", $user['Processing_value']);
+    $renewModeKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '🔃 جایگزینی کامل (فعلی — کلیک برای تغییر)', 'callback_data' => 'renewadd']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🔄 حالت تمدید سرویس\n\nوضعیت: 🔃 جایگزینی کامل\n\nاز این پس در تمدید سرویس، حجم قبلی کاربر حذف و فقط حجم خریداری‌شده جایگزین می‌شود.", $renewModeKeyboard);
+} elseif ($datain == "renewadd") {
+    update("marzban_panel", "renew_mode", "addvolume", "name_panel", $user['Processing_value']);
+    $renewModeKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '➕ جمع با باقی‌مانده (فعلی — کلیک برای تغییر)', 'callback_data' => 'renewreplace']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🔄 حالت تمدید سرویس\n\nوضعیت: ➕ جمع با حجم باقی‌مانده\n\nاز این پس در تمدید سرویس، حجم جدید به حجم باقی‌مانده کاربر اضافه می‌شود.", $renewModeKeyboard);
 }
 #----------------[  view order user  ]------------------#
 if ($text == "🛍 مشاهده سفارشات کاربر") {

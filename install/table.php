@@ -412,6 +412,11 @@ try {
             $connect->query("ALTER TABLE marzban_panel ADD test_volume VARCHAR(200) NULL");
             echo "The test_volume field was added ✅";
         }
+        $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'renew_mode'");
+        if (mysqli_num_rows($Check_filde) != 1) {
+            $connect->query("ALTER TABLE marzban_panel ADD renew_mode VARCHAR(20) NOT NULL DEFAULT 'addvolume'");
+            echo "The renew_mode field was added ✅";
+        }
         }
 } catch (Exception $e) {
     file_put_contents("$randomString.txt",$e->getMessage());
