@@ -697,7 +697,7 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
                 ['text' => $textbotlang['users']['extend']['title'], 'callback_data' => 'extend_' . $username],
                 // ['text' => $textbotlang['users']['changelink']['btntitle'], 'callback_data' => 'changelink_' . $username],
             ],
-            ...( ($marzban_list_get['allow_delete'] ?? 'offdelete') === 'ondelete'
+            ...( ($marzban_list_get['allow_delete'] ?? 'offdelete') === 'ondelete' && $DataUserOut['expire'] && $timeDiff > 5 * 86400
                 ? [[['text' => '🗑 حذف سرویس', 'callback_data' => 'deleteservice_' . $username]]]
                 : [] ),
             [
@@ -837,6 +837,12 @@ telegram('sendMessage', [
     $nameloc = select("invoice", "*", "username", $username, "select");
     if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
         Editmessagetext($from_id, $message_id, "❌ سرویس یافت نشد.", null);
+        return;
+    }
+    $delCheckData = $ManagePanel->DataUser($nameloc['Service_location'], $username);
+    $delExpire = (int)($delCheckData['expire'] ?? 0);
+    if ($delExpire > 0 && ($delExpire - time()) <= 5 * 86400) {
+        Editmessagetext($from_id, $message_id, "❌ امکان حذف سرویس وجود ندارد.\n\nسرویس‌هایی که کمتر از ۵ روز تا انقضا دارند قابل حذف نیستند.", null);
         return;
     }
     $confirmKeyboard = json_encode([
@@ -1102,6 +1108,11 @@ if (!empty($setting['Channel_Report'])) {
         $liveData = $ManagePanel->DataUser($nameloc['Service_location'], $username);
         if (!empty($liveData['username'])) break;
         if ($i < 3) sleep(1);
+    }
+    $liveExpire = (int)($liveData['expire'] ?? 0);
+    if ($liveExpire > 0 && ($liveExpire - time()) <= 5 * 86400) {
+        Editmessagetext($from_id, $message_id, "❌ امکان حذف سرویس وجود ندارد.\n\nسرویس‌هایی که کمتر از ۵ روز تا انقضا دارند قابل حذف نیستند.", null);
+        return;
     }
     $refund = 0;
     $remainingGB = 0;
