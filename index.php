@@ -1687,7 +1687,7 @@ if ($text == $datatextbot['text_sell']) {
 //         sendmessage($from_id, $textproduct, $json_list_product_list, 'HTML');
 //         update("user", "Processing_value", $location['name_panel'], "id", $from_id);
     
-    $stmtPanelCount = $pdo->prepare("SELECT COUNT(*) FROM marzban_panel WHERE (status IS NULL OR status = 1)");
+    $stmtPanelCount = $pdo->prepare("SELECT COUNT(*) FROM marzban_panel WHERE (status IS NULL OR status = 1) AND (sell_enabled IS NULL OR sell_enabled = '1')");
     $stmtPanelCount->execute();
     $panelCount = $stmtPanelCount->fetchColumn();
     if ($panelCount == 0) {
@@ -1705,6 +1705,10 @@ if ($text == $datatextbot['text_sell']) {
     $panellist = select("marzban_panel", "*", "name_panel", $location, "select");
       if (!$panellist || (int)($panellist['status'] ?? 1) !== 1) {
         sendmessage($from_id, $textbotlang['Admin']['managepanel']['nullpanel'], null, 'HTML');
+        return;
+    }
+    if (($panellist['sell_enabled'] ?? '1') !== '1') {
+        sendmessage($from_id, "❌ این پنل فعلاً برای خرید اشتراک جدید در دسترس نیست.", $keyboard, 'HTML');
         return;
     }
     $nullproduct = select("product", "*", null, null, "count");
@@ -4277,6 +4281,38 @@ if ($datain == "ondelete") {
         ]
     ]);
     Editmessagetext($from_id, $message_id, "🗑 قابلیت حذف سرویس توسط کاربر\n\nوضعیت: ✅ روشن\n\nدکمه حذف سرویس برای کاربران این پنل نمایش داده می‌شود.", $deleteStatusKeyboard);
+}
+#----------------[ sell_enabled toggle ]------------------#
+if ($text == "🛒 قابلیت خرید اشتراک جدید") {
+    $panel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    if (!isset($panel['sell_enabled'])) {
+        update("marzban_panel", "sell_enabled", "1", "name_panel", $user['Processing_value']);
+        $panel['sell_enabled'] = "1";
+    }
+    $isOn = ($panel['sell_enabled'] ?? '1') === '1';
+    $sellKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => $isOn ? '✅ فعال (کلیک برای غیرفعال)' : '❌ غیرفعال (کلیک برای فعال)', 'callback_data' => $isOn ? 'selldisable' : 'sellenable']]
+        ]
+    ]);
+    sendmessage($from_id, "🛒 قابلیت خرید اشتراک جدید\n\nوضعیت فعلی: " . ($isOn ? '✅ فعال' : '❌ غیرفعال (فقط تمدید)') . "\n\nاگر غیرفعال باشد این پنل در لیست خرید اشتراک نمایش داده نمی‌شود ولی کاربران فعلی همچنان می‌توانند سرویس خود را تمدید کنند.", $sellKeyboard, 'HTML');
+}
+if ($datain == "selldisable") {
+    update("marzban_panel", "sell_enabled", "0", "name_panel", $user['Processing_value']);
+    $sellKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '❌ غیرفعال (کلیک برای فعال)', 'callback_data' => 'sellenable']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🛒 قابلیت خرید اشتراک جدید\n\nوضعیت: ❌ غیرفعال\n\nاین پنل در لیست خرید اشتراک مخفی شد. کاربران فعلی همچنان می‌توانند تمدید کنند.", $sellKeyboard);
+} elseif ($datain == "sellenable") {
+    update("marzban_panel", "sell_enabled", "1", "name_panel", $user['Processing_value']);
+    $sellKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '✅ فعال (کلیک برای غیرفعال)', 'callback_data' => 'selldisable']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🛒 قابلیت خرید اشتراک جدید\n\nوضعیت: ✅ فعال\n\nاین پنل در لیست خرید اشتراک نمایش داده می‌شود.", $sellKeyboard);
 }
 #----------------[  view order user  ]------------------#
 if ($text == "🛍 مشاهده سفارشات کاربر") {

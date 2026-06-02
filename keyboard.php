@@ -291,6 +291,7 @@ $stmt = $pdo->prepare("SHOW TABLES LIKE 'marzban_panel'");
   $namepanel = [];
   $activeNamepanel = [];
   $testNamepanel = [];
+  $sellNamepanel = [];
   if ($table_exists) {
     $stmt = $pdo->prepare("SELECT * FROM marzban_panel");
     $stmt->execute();
@@ -300,6 +301,9 @@ $stmt = $pdo->prepare("SHOW TABLES LIKE 'marzban_panel'");
             $activeNamepanel[] = [$row['name_panel']];
             if (($row['test_enabled'] ?? '0') === '1') {
                 $testNamepanel[] = [$row['name_panel']];
+            }
+            if (($row['sell_enabled'] ?? '1') === '1') {
+                $sellNamepanel[] = [$row['name_panel']];
             }
         }
     }
@@ -362,7 +366,7 @@ if ($users['step'] == "getusernameinfo") {
 }
 }
 else{
-        foreach ($activeNamepanel as $button) {
+        foreach ($sellNamepanel as $button) {
     $list_marzban_panel_users['inline_keyboard'][] = [
         ['text' => $button[0] , 'callback_data' => "location_{$button[0]}"]
     ];
@@ -554,7 +558,7 @@ $optionMarzban = json_encode([
         [['text' => "🔐 ویرایش رمز عبور"],['text' => "⚙️ تنظیمات پروتکل"]],
         [['text' => "🍀 قابلیت flow"],['text' => "💡 روش ساخت نام کاربری"]],
         [['text' => "🔗 ارسال لینک سابسکرایبشن"],['text' => "⚙️ارسال کانفیگ"]],
-        [['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
+        [['text' => "🛒 قابلیت خرید اشتراک جدید"],['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true
@@ -568,7 +572,7 @@ $optionX_ui_single = json_encode([
         [['text'=>"🔗 ویرایش آدرس پنل"],['text' => "💎 تنظیم شناسه اینباند"]],
         [['text' => "🔗 ارسال لینک سابسکرایبشن"],['text' => "⚙️ارسال کانفیگ"]],
         [['text' => '🔗 دامنه لینک ساب']],
-        [['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
+        [['text' => "🛒 قابلیت خرید اشتراک جدید"],['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true

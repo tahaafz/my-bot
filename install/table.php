@@ -402,6 +402,11 @@ try {
             $connect->query("ALTER TABLE marzban_panel ADD allow_delete VARCHAR(20) NOT NULL DEFAULT 'offdelete'");
             echo "The allow_delete field was added ✅";
         }
+        $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'sell_enabled'");
+        if (mysqli_num_rows($Check_filde) != 1) {
+            $connect->query("ALTER TABLE marzban_panel ADD sell_enabled VARCHAR(10) NOT NULL DEFAULT '1'");
+            echo "The sell_enabled field was added ✅";
+        }
         $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'test_volume'");
         if (mysqli_num_rows($Check_filde) != 1) {
             $connect->query("ALTER TABLE marzban_panel ADD test_volume VARCHAR(200) NULL");
