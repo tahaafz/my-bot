@@ -134,6 +134,7 @@ $keyboard_usertest =  json_encode([
         [['text' => "➕ محدودیت ساخت اکانت تست برای کاربر"]],
         [['text' => "➕ محدودیت ساخت اکانت تست برای همه"]],
         [['text' => "⏳ زمان سرویس تست"], ['text' => "💾 حجم اکانت تست"]],
+        [['text' => "⚙️ تنظیمات پنل‌های تست"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true
@@ -289,6 +290,7 @@ $stmt = $pdo->prepare("SHOW TABLES LIKE 'marzban_panel'");
   $table_exists = count($result) > 0;
   $namepanel = [];
   $activeNamepanel = [];
+  $testNamepanel = [];
   if ($table_exists) {
     $stmt = $pdo->prepare("SELECT * FROM marzban_panel");
     $stmt->execute();
@@ -296,6 +298,9 @@ $stmt = $pdo->prepare("SHOW TABLES LIKE 'marzban_panel'");
         $namepanel[] = [$row['name_panel']];
           if (!isset($row['status']) || (int)$row['status'] === 1) {
             $activeNamepanel[] = [$row['name_panel']];
+            if (($row['test_enabled'] ?? '0') === '1') {
+                $testNamepanel[] = [$row['name_panel']];
+            }
         }
     }
     $list_marzban_panel = [
@@ -370,7 +375,7 @@ $list_marzban_panel_user = json_encode($list_marzban_panel_users);
   $list_marzban_panel_usertest = [
         'inline_keyboard' => [],
     ];
-    foreach ($namepanel as $buttons) {
+    foreach ($testNamepanel as $buttons) {
     $list_marzban_panel_usertest['inline_keyboard'][] = [
         ['text' => $buttons[0] , 'callback_data' => "locationtests_".$buttons[0]]
     ];
@@ -549,6 +554,7 @@ $optionMarzban = json_encode([
         [['text' => "🔐 ویرایش رمز عبور"],['text' => "⚙️ تنظیمات پروتکل"]],
         [['text' => "🍀 قابلیت flow"],['text' => "💡 روش ساخت نام کاربری"]],
         [['text' => "🔗 ارسال لینک سابسکرایبشن"],['text' => "⚙️ارسال کانفیگ"]],
+        [['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true
@@ -562,6 +568,7 @@ $optionX_ui_single = json_encode([
         [['text'=>"🔗 ویرایش آدرس پنل"],['text' => "💎 تنظیم شناسه اینباند"]],
         [['text' => "🔗 ارسال لینک سابسکرایبشن"],['text' => "⚙️ارسال کانفیگ"]],
         [['text' => '🔗 دامنه لینک ساب']],
+        [['text' => "🗑 قابلیت حذف سرویس توسط کاربر"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true

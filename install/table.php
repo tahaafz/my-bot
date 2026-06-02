@@ -392,6 +392,21 @@ try {
             $connect->query("UPDATE marzban_panel SET trojan = 'ontrojan'");
             echo "The trojan field was added ✅";
         }
+        $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'test_enabled'");
+        if (mysqli_num_rows($Check_filde) != 1) {
+            $connect->query("ALTER TABLE marzban_panel ADD test_enabled VARCHAR(10) NOT NULL DEFAULT '0'");
+            echo "The test_enabled field was added ✅";
+        }
+        $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'allow_delete'");
+        if (mysqli_num_rows($Check_filde) != 1) {
+            $connect->query("ALTER TABLE marzban_panel ADD allow_delete VARCHAR(20) NOT NULL DEFAULT 'offdelete'");
+            echo "The allow_delete field was added ✅";
+        }
+        $Check_filde = $connect->query("SHOW COLUMNS FROM marzban_panel LIKE 'test_volume'");
+        if (mysqli_num_rows($Check_filde) != 1) {
+            $connect->query("ALTER TABLE marzban_panel ADD test_volume VARCHAR(200) NULL");
+            echo "The test_volume field was added ✅";
+        }
         }
 } catch (Exception $e) {
     file_put_contents("$randomString.txt",$e->getMessage());

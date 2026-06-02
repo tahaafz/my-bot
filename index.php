@@ -697,9 +697,9 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
                 ['text' => $textbotlang['users']['extend']['title'], 'callback_data' => 'extend_' . $username],
                 // ['text' => $textbotlang['users']['changelink']['btntitle'], 'callback_data' => 'changelink_' . $username],
             ],
-            [
-                ['text' => '🗑 حذف سرویس', 'callback_data' => 'deleteservice_' . $username],
-            ],
+            ...( ($marzban_list_get['allow_delete'] ?? 'offdelete') === 'ondelete'
+                ? [[['text' => '🗑 حذف سرویس', 'callback_data' => 'deleteservice_' . $username]]]
+                : [] ),
             [
                 ['text' => $textbotlang['users']['stateus']['backlist'], 'callback_data' => 'backorder'],
             ]
@@ -1269,8 +1269,16 @@ if ($text == $datatextbot['text_usertest'] || strpos($text, "/start ") !== false
         sendmessage($from_id, $textbotlang['users']['usertest']['limitwarning'], $keyboard, 'html');
         return;
     }
-    $panel9 = select("marzban_panel", "*", "id", 9, "select");
-    $datain = "locationtests_" . $panel9['name_panel'];
+    if (empty($testNamepanel)) {
+        sendmessage($from_id, "❌ در حال حاضر پنلی برای دریافت اکانت تست فعال نیست.", $keyboard, 'html');
+        return;
+    }
+    if (count($testNamepanel) === 1) {
+        $datain = "locationtests_" . $testNamepanel[0][0];
+    } else {
+        sendmessage($from_id, "🔽 لطفاً پنل مورد نظر برای دریافت اکانت تست را انتخاب کنید:", $list_marzban_usertest, 'html');
+        return;
+    }
 }
 if ($user['step'] == "createusertest" || preg_match('/locationtests_(.*)/', $datain, $dataget)) {
     if ($user['limit_usertest'] <= 0) {
@@ -1304,9 +1312,10 @@ if ($user['step'] == "createusertest" || preg_match('/locationtests_(.*)/', $dat
         $random_number = random_int(1000000, 9999999);
         $username_ac = $username_ac . $random_number;
     }
+    $test_vol_mb = (!empty($marzban_list_get['test_volume'])) ? (int)$marzban_list_get['test_volume'] : (int)$setting['val_usertest'];
     $datac = array(
         'expire' => strtotime(date("Y-m-d H:i:s", strtotime("+" . $setting['time_usertest'] . "hours"))),
-        'data_limit' => $setting['val_usertest'] * 1048576,
+        'data_limit' => $test_vol_mb * 1048576,
     );
     $dataoutput = $ManagePanel->createUser($name_panel, $username_ac, $datac);
 if (isset($dataoutput['username']) && $dataoutput['username'] == null) {
@@ -3901,6 +3910,100 @@ if ($text == "💾 حجم اکانت تست") {
     step('home', $from_id);
 }
 #-------------------------#
+if ($text == "⚙️ تنظیمات پنل‌های تست") {
+    $stmt = $pdo->prepare("SELECT * FROM marzban_panel");
+    $stmt->execute();
+    $all_panels = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($all_panels)) {
+        sendmessage($from_id, "❌ هیچ پنلی ثبت نشده است.", $keyboard_usertest, 'HTML');
+        return;
+    }
+    $panelTestKeyboard = ['inline_keyboard' => []];
+    foreach ($all_panels as $p) {
+        $st = ($p['test_enabled'] ?? '0') === '1' ? '🟢' : '🔴';
+        $vd = !empty($p['test_volume']) ? $p['test_volume'] . ' MB' : 'پیش‌فرض';
+        $panelTestKeyboard['inline_keyboard'][] = [
+            ['text' => "$st {$p['name_panel']} | $vd", 'callback_data' => 'testpanelconfig_' . $p['name_panel']]
+        ];
+    }
+    sendmessage($from_id, "⚙️ تنظیمات تست پنل‌ها\n🟢 فعال | 🔴 غیرفعال\n\nبرای تنظیم هر پنل روی آن کلیک کنید:", json_encode($panelTestKeyboard), 'HTML');
+}
+#-------------------------#
+if (preg_match('/^testpanelconfig_(.+)$/', $datain, $dataget) || $datain == 'backtotestpanels') {
+    if ($datain == 'backtotestpanels') {
+        $stmt = $pdo->prepare("SELECT * FROM marzban_panel");
+        $stmt->execute();
+        $all_panels = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $panelTestKeyboard = ['inline_keyboard' => []];
+        foreach ($all_panels as $p) {
+            $st = ($p['test_enabled'] ?? '0') === '1' ? '🟢' : '🔴';
+            $vd = !empty($p['test_volume']) ? $p['test_volume'] . ' MB' : 'پیش‌فرض';
+            $panelTestKeyboard['inline_keyboard'][] = [
+                ['text' => "$st {$p['name_panel']} | $vd", 'callback_data' => 'testpanelconfig_' . $p['name_panel']]
+            ];
+        }
+        Editmessagetext($from_id, $message_id, "⚙️ تنظیمات تست پنل‌ها\n🟢 فعال | 🔴 غیرفعال\n\nبرای تنظیم هر پنل روی آن کلیک کنید:", json_encode($panelTestKeyboard));
+    } else {
+        $panel_name = $dataget[1];
+        $panel_info = select("marzban_panel", "*", "name_panel", $panel_name, "select");
+        $is_en = ($panel_info['test_enabled'] ?? '0') === '1';
+        $toggle_lbl = $is_en ? '🔴 غیرفعال کردن تست' : '🟢 فعال کردن تست';
+        $vd = !empty($panel_info['test_volume']) ? $panel_info['test_volume'] . ' مگابایت' : 'پیش‌فرض (' . $setting['val_usertest'] . ' MB)';
+        $cfgKb = json_encode([
+            'inline_keyboard' => [
+                [['text' => $toggle_lbl, 'callback_data' => 'toggletestpanel_' . $panel_name]],
+                [['text' => '💾 تنظیم حجم تست', 'callback_data' => 'settestvolumepanel_' . $panel_name]],
+                [['text' => '🔙 بازگشت', 'callback_data' => 'backtotestpanels']],
+            ]
+        ]);
+        Editmessagetext($from_id, $message_id,
+            "⚙️ پنل: <b>{$panel_name}</b>\nوضعیت: " . ($is_en ? '🟢 فعال' : '🔴 غیرفعال') . "\nحجم تست: {$vd}",
+            $cfgKb);
+    }
+}
+#-------------------------#
+if (preg_match('/^toggletestpanel_(.+)$/', $datain, $dataget)) {
+    $panel_name = $dataget[1];
+    $panel_info = select("marzban_panel", "*", "name_panel", $panel_name, "select");
+    $new_st = ($panel_info['test_enabled'] ?? '0') === '1' ? '0' : '1';
+    $stmt = $pdo->prepare("UPDATE marzban_panel SET test_enabled = ? WHERE name_panel = ?");
+    $stmt->execute([$new_st, $panel_name]);
+    $is_en = $new_st === '1';
+    $toggle_lbl = $is_en ? '🔴 غیرفعال کردن تست' : '🟢 فعال کردن تست';
+    $vd = !empty($panel_info['test_volume']) ? $panel_info['test_volume'] . ' مگابایت' : 'پیش‌فرض (' . $setting['val_usertest'] . ' MB)';
+    $cfgKb = json_encode([
+        'inline_keyboard' => [
+            [['text' => $toggle_lbl, 'callback_data' => 'toggletestpanel_' . $panel_name]],
+            [['text' => '💾 تنظیم حجم تست', 'callback_data' => 'settestvolumepanel_' . $panel_name]],
+            [['text' => '🔙 بازگشت', 'callback_data' => 'backtotestpanels']],
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id,
+        "⚙️ پنل: <b>{$panel_name}</b>\nوضعیت: " . ($is_en ? '🟢 فعال' : '🔴 غیرفعال') . "\nحجم تست: {$vd}",
+        $cfgKb);
+}
+#-------------------------#
+if (preg_match('/^settestvolumepanel_(.+)$/', $datain, $dataget)) {
+    $panel_name = $dataget[1];
+    $panel_info = select("marzban_panel", "*", "name_panel", $panel_name, "select");
+    $cur_vol = !empty($panel_info['test_volume']) ? $panel_info['test_volume'] : $setting['val_usertest'];
+    step('settestvolume', $from_id);
+    update("user", "Processing_value", $panel_name, "id", $from_id);
+    sendmessage($from_id, "💾 حجم تست پنل <b>{$panel_name}</b> را ارسال کنید.\nحجم فعلی: <b>{$cur_vol} مگابایت</b>\n⚠️ بر حسب مگابایت — برای استفاده از مقدار پیش‌فرض عدد 0 بفرستید.", $backadmin, 'HTML');
+} elseif ($user['step'] == "settestvolume") {
+    if (!ctype_digit($text)) {
+        sendmessage($from_id, "❌ لطفاً یک عدد صحیح وارد کنید.", $backadmin, 'HTML');
+        return;
+    }
+    $panel_name = $user['Processing_value'];
+    $vol_val = (int)$text === 0 ? null : $text;
+    $stmt = $pdo->prepare("UPDATE marzban_panel SET test_volume = ? WHERE name_panel = ?");
+    $stmt->execute([$vol_val, $panel_name]);
+    step('home', $from_id);
+    $disp = $vol_val ? "$vol_val مگابایت" : "پیش‌فرض ({$setting['val_usertest']} MB)";
+    sendmessage($from_id, "✅ حجم تست پنل <b>{$panel_name}</b> به <b>{$disp}</b> تنظیم شد.", $keyboard_usertest, 'HTML');
+}
+#-------------------------#
 if ($text == "⬆️️️ افزایش موجودی کاربر") {
     sendmessage($from_id, $textbotlang['Admin']['Balance']['AddBalance'], $backadmin, 'HTML');
     step('add_Balance', $from_id);
@@ -4141,6 +4244,39 @@ if ($datain == "onconfig") {
         ]
     ]);
     Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Status']['configStatuson'], $configkeyboard);
+}
+#----------------[ allow_delete toggle ]------------------#
+if ($text == "🗑 قابلیت حذف سرویس توسط کاربر") {
+    $panel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    if (empty($panel['allow_delete'])) {
+        update("marzban_panel", "allow_delete", "offdelete", "name_panel", $user['Processing_value']);
+        $panel['allow_delete'] = "offdelete";
+    }
+    $deleteStatusKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => $panel['allow_delete'] === 'ondelete' ? '✅ روشن' : '❌ خاموش', 'callback_data' => $panel['allow_delete']]]
+        ]
+    ]);
+    sendmessage($from_id, "🗑 قابلیت حذف سرویس توسط کاربر\n\nوضعیت فعلی: " . ($panel['allow_delete'] === 'ondelete' ? '✅ روشن' : '❌ خاموش') . "\n\nدر صورت روشن بودن، دکمه «حذف سرویس» برای کاربران این پنل نمایش داده می‌شود.", $deleteStatusKeyboard, 'HTML');
+}
+if ($datain == "ondelete") {
+    update("marzban_panel", "allow_delete", "offdelete", "name_panel", $user['Processing_value']);
+    $panel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    $deleteStatusKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '❌ خاموش', 'callback_data' => 'offdelete']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🗑 قابلیت حذف سرویس توسط کاربر\n\nوضعیت: ❌ خاموش\n\nدکمه حذف سرویس برای کاربران این پنل مخفی شد.", $deleteStatusKeyboard);
+} elseif ($datain == "offdelete") {
+    update("marzban_panel", "allow_delete", "ondelete", "name_panel", $user['Processing_value']);
+    $panel = select("marzban_panel", "*", "name_panel", $user['Processing_value'], "select");
+    $deleteStatusKeyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '✅ روشن', 'callback_data' => 'ondelete']]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id, "🗑 قابلیت حذف سرویس توسط کاربر\n\nوضعیت: ✅ روشن\n\nدکمه حذف سرویس برای کاربران این پنل نمایش داده می‌شود.", $deleteStatusKeyboard);
 }
 #----------------[  view order user  ]------------------#
 if ($text == "🛍 مشاهده سفارشات کاربر") {
