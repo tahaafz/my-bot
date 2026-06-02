@@ -1106,7 +1106,7 @@ if (!empty($setting['Channel_Report'])) {
         $priceProduct = (int)$nameloc['price_product'];
         $volumeGB = max(1, (int)$nameloc['Volume']);
         $pricePerGB = $priceProduct / $volumeGB;
-        $refund = (int)ceil($remainingGB * $pricePerGB);
+        $refund = (int)(ceil($remainingGB * $pricePerGB / 1000) * 1000);
     }
     $ManagePanel->RemoveUser($nameloc['Service_location'], $username);
     update("invoice", "Status", "removedbyuser", "username", $username);
@@ -1127,9 +1127,11 @@ if (!empty($setting['Channel_Report'])) {
         'inline_keyboard' => [[['text' => '🏠 بازگشت به لیست سرویس‌ها', 'callback_data' => 'backorder']]]
     ]);
     sendmessage($from_id, $msg, $backKeyboard, 'HTML');
-    sendmessage('501813541',
-        "🗑 کاربر <code>$from_id</code> سرویس <code>$username</code> را حذف کرد.\n💰 مبلغ بازگشتی: {$refundFormatted} تومان\n📊 حجم باقی: {$remainingFormatted} گیگ",
-        null, 'HTML');
+    $adminDeleteMsg = "🗑 یک کاربر سرویس خود را حذف کرد.\n\n🪪 آیدی: <code>$from_id</code>\n👤 نام کاربری پنل: <code>$username</code>\n📍 لوکیشن: {$nameloc['Service_location']}\n\n📊 حجم باقی‌مانده: {$remainingFormatted} گیگ\n💰 مبلغ بازگشتی: {$refundFormatted} تومان";
+    sendmessage('501813541', $adminDeleteMsg, null, 'HTML');
+    if (!empty($setting['Channel_Report'])) {
+        sendmessage($setting['Channel_Report'], $adminDeleteMsg, null, 'HTML');
+    }
 
 } elseif (preg_match('/removeserviceuserco-(\w+)/', $datain, $dataget)) {
         $username = $dataget[1];
