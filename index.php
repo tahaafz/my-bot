@@ -698,8 +698,7 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
                 // ['text' => $textbotlang['users']['changelink']['btntitle'], 'callback_data' => 'changelink_' . $username],
             ],
             [
-                // ['text' => $textbotlang['users']['removeconfig']['btnremoveuser'], 'callback_data' => 'removeserviceuserco-' . $username],
-                // ['text' => $textbotlang['users']['Extra_volume']['sellextra'], 'callback_data' => 'Extra_volume_' . $username],
+                ['text' => '🗑 حذف سرویس', 'callback_data' => 'deleteservice_' . $username],
             ],
             [
                 ['text' => $textbotlang['users']['stateus']['backlist'], 'callback_data' => 'backorder'],
@@ -832,6 +831,25 @@ telegram('sendMessage', [
         ['text' => "🏠 بازگشت به اطلاعات سرویس", 'callback_data' => "product_" . $username]
     ];
     Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], json_encode($productextend));
+
+} elseif (preg_match('/^deleteservice_(\w+)$/', $datain, $dataget)) {
+    $username = $dataget[1];
+    $nameloc = select("invoice", "*", "username", $username, "select");
+    if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
+        Editmessagetext($from_id, $message_id, "❌ سرویس یافت نشد.", null);
+        return;
+    }
+    $confirmKeyboard = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '✅ بله، سرویس را حذف کن', 'callback_data' => 'confirmdeleteservice_' . $username],
+                ['text' => '❌ انصراف', 'callback_data' => 'product_' . $username],
+            ]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id,
+        "⚠️ آیا مطمئن هستید؟\n\nبا حذف سرویس <b>$username</b>، حجم باقی‌مانده محاسبه شده و به موجودی شما بازگردانده می‌شود.\n\n🚨 این عملیات غیرقابل بازگشت است.",
+        $confirmKeyboard);
 
 }elseif (preg_match('/^mounth2_(\d+)_(.+)/', $datain, $dataget)) {
 //     $mounth = $dataget[1];
@@ -1066,6 +1084,53 @@ telegram('sendMessage', [
 if (!empty($setting['Channel_Report'])) {
         sendmessage($setting['Channel_Report'], $text_report, null, 'HTML');
     }
+} elseif (preg_match('/^confirmdeleteservice_(\w+)$/', $datain, $dataget)) {
+    $username = $dataget[1];
+    $nameloc = select("invoice", "*", "username", $username, "select");
+    if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
+        Editmessagetext($from_id, $message_id, "❌ سرویس یافت نشد یا دسترسی ندارید.", null);
+        return;
+    }
+    Editmessagetext($from_id, $message_id, "⏳ در حال محاسبه و حذف سرویس...", null);
+    $liveData = null;
+    for ($i = 1; $i <= 3; $i++) {
+        $liveData = $ManagePanel->DataUser($nameloc['Service_location'], $username);
+        if (!empty($liveData['username'])) break;
+        if ($i < 3) sleep(1);
+    }
+    $refund = 0;
+    $remainingGB = 0;
+    if (!empty($liveData['data_limit']) && (int)$liveData['data_limit'] > 0) {
+        $remainingBytes = max(0, (int)$liveData['data_limit'] - (int)($liveData['used_traffic'] ?? 0));
+        $remainingGB = $remainingBytes / (1024 ** 3);
+        $priceProduct = (int)$nameloc['price_product'];
+        $volumeGB = max(1, (int)$nameloc['Volume']);
+        $pricePerGB = $priceProduct / $volumeGB;
+        $refund = (int)ceil($remainingGB * $pricePerGB);
+    }
+    $ManagePanel->RemoveUser($nameloc['Service_location'], $username);
+    update("invoice", "Status", "removedbyuser", "username", $username);
+    if ($refund > 0) {
+        $stmt = $pdo->prepare("UPDATE user SET Balance = Balance + :refund WHERE id = :id");
+        $stmt->execute([':refund' => $refund, ':id' => $from_id]);
+    }
+    $refundFormatted = number_format($refund);
+    $remainingFormatted = round($remainingGB, 2);
+    $msg = "✅ سرویس <b>$username</b> با موفقیت حذف شد.\n\n";
+    if ($refund > 0) {
+        $msg .= "💰 حجم باقی‌مانده: <b>{$remainingFormatted} گیگ</b>\n";
+        $msg .= "💵 مبلغ بازگشتی: <b>{$refundFormatted} تومان</b> به موجودی شما اضافه شد.";
+    } else {
+        $msg .= "ℹ️ حجم باقی‌مانده‌ای برای محاسبه وجود نداشت.";
+    }
+    $backKeyboard = json_encode([
+        'inline_keyboard' => [[['text' => '🏠 بازگشت به لیست سرویس‌ها', 'callback_data' => 'backorder']]]
+    ]);
+    sendmessage($from_id, $msg, $backKeyboard, 'HTML');
+    sendmessage('501813541',
+        "🗑 کاربر <code>$from_id</code> سرویس <code>$username</code> را حذف کرد.\n💰 مبلغ بازگشتی: {$refundFormatted} تومان\n📊 حجم باقی: {$remainingFormatted} گیگ",
+        null, 'HTML');
+
 } elseif (preg_match('/removeserviceuserco-(\w+)/', $datain, $dataget)) {
         $username = $dataget[1];
     $nameloc = select("invoice", "*", "username", $username, "select");
