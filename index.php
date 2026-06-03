@@ -691,7 +691,7 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
         'inline_keyboard' => [
             [
                 ['text' => $textbotlang['users']['stateus']['linksub'], 'callback_data' => 'subscriptionurl_' . $username],
-                // ['text' => $textbotlang['users']['stateus']['config'], 'callback_data' => 'config_' . $username],
+                ['text' => $textbotlang['users']['stateus']['config'], 'callback_data' => 'config_' . $username],
             ],
             [
                 ['text' => $textbotlang['users']['extend']['title'], 'callback_data' => 'extend_' . $username],
@@ -1974,8 +1974,6 @@ if (!empty($setting['Channel_Report'])) {
             ]
         ]
     ]);
-    if($user['trusteduser'] > 0) {
-
     $textcreatuser = "✅ سرویس با موفقیت ایجاد شد
 
 👤 نام کاربری سرویس : <code>$username_ac</code>
@@ -1986,30 +1984,13 @@ if (!empty($setting['Channel_Report'])) {
 
 لینک اتصال:
 $link_config
-$text_config
 
 🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";
-    } else{
-    $textcreatuser = "✅ سرویس با موفقیت ایجاد شد
-
-👤 نام کاربری سرویس : <code>$username_ac</code>
-🌿 نام سرویس: {$info_product['name_product']}
-‏🇺🇳 لوکیشن: {$marzban_list_get['name_panel']}
-⏳ مدت زمان: {$info_product['Service_time']}  روز
-🗜 حجم سرویس:  {$info_product['Volume_constraint']} گیگ
-
-لینک اتصال:
-$link_config
-$text_config
-
-🧑‍🦯 شما میتوانید شیوه اتصال را با فشردن دکمه زیر و انتخاب سیستم عامل خود دریافت کنید";
-}
     // if ($marzban_list_get['sublink'] == "onsublink") {
       if (!empty($output_config_link)) {
-        $qr_target = !empty($configqr) ? $configqr : $output_config_link;
         $urlimage = "$from_id$randomString.png";
         $writer = new PngWriter();
-        $qrCode = QrCode::create($qr_target)
+        $qrCode = QrCode::create($output_config_link)
             ->setEncoding(new Encoding('UTF-8'))
             ->setErrorCorrectionLevel(ErrorCorrectionLevel::Low)
             ->setSize(400)
@@ -2024,12 +2005,14 @@ $text_config
             'caption' => $textcreatuser,
             'parse_mode' => "HTML",
         ]);
-        sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
         unlink($urlimage);
     } else {
         sendmessage($from_id, $textcreatuser, $Shoppinginfo, 'HTML');
-        sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
     }
+    if (!empty($text_config)) {
+        sendmessage($from_id, "🔗 کانفیگ‌های دستی اتصال:\n" . $text_config, null, 'HTML');
+    }
+    sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
  //   $user['trusteduser'] = 1;
     // Update limit_usertest in the database
  //   update("user", "trusteduser", 1, "id", $from_id);
