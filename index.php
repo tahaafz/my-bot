@@ -695,7 +695,7 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
             ],
             [
                 ['text' => $textbotlang['users']['extend']['title'], 'callback_data' => 'extend_' . $username],
-                // ['text' => $textbotlang['users']['changelink']['btntitle'], 'callback_data' => 'changelink_' . $username],
+                ['text' => '⛔️ قطع دسترسی', 'callback_data' => 'changelink_' . $username],
             ],
             ...( ($marzban_list_get['allow_delete'] ?? 'offdelete') === 'ondelete' && $DataUserOut['expire'] && $timeDiff > 5 * 86400
                 ? [[['text' => '🗑 حذف سرویس', 'callback_data' => 'deleteservice_' . $username]]]
@@ -796,6 +796,43 @@ telegram('sendMessage', [
     'text' => $text,
     'parse_mode' => 'HTML',
 ]);
+} elseif (preg_match('/^changelink_(\w+)$/', $datain, $dataget)) {
+    $username = $dataget[1];
+    $nameloc = select("invoice", "*", "username", $username, "select");
+    if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
+        return;
+    }
+    $warnKeyboard = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '✅ بله، قطع کن', 'callback_data' => 'confirmchangelink_' . $username],
+                ['text' => '❌ انصراف', 'callback_data' => 'product_' . $username],
+            ]
+        ]
+    ]);
+    Editmessagetext($from_id, $message_id,
+        "⚠️ <b>هشدار!</b>\n\n" .
+        "با تأیید این عملیات، لینک اشتراک شما تغییر می‌کند و <b>تمام دستگاه‌هایی که در حال حاضر به این سرویس متصل هستند قطع می‌شوند.</b>\n\n" .
+        "برای اتصال مجدد باید لینک اشتراک جدید را دریافت و در اپلیکیشن خود وارد کنید.\n\n" .
+        "آیا مطمئن هستید؟",
+        $warnKeyboard);
+} elseif (preg_match('/^confirmchangelink_(\w+)$/', $datain, $dataget)) {
+    $username = $dataget[1];
+    $nameloc = select("invoice", "*", "username", $username, "select");
+    if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
+        return;
+    }
+    Editmessagetext($from_id, $message_id, "⏳ در حال قطع دسترسی و تغییر لینک، لطفاً چند لحظه صبر کنید...", null);
+    $revokeResult = $ManagePanel->Revoke_sub($nameloc['Service_location'], $username);
+    if (($revokeResult['status'] ?? '') !== 'successful') {
+        Editmessagetext($from_id, $message_id, "❌ عملیات با خطا مواجه شد، لطفاً مجدداً امتحان کنید.", null);
+        return;
+    }
+    $newSubUrl = $revokeResult['subscription_url'] ?? '';
+    $successText = "✅ <b>دسترسی با موفقیت قطع شد!</b>\n\n" .
+        "🔗 لینک اشتراک جدید شما:\n<code>$newSubUrl</code>\n\n" .
+        "این لینک را در اپلیکیشن خود جایگزین لینک قبلی کنید.";
+    sendmessage($from_id, $successText, null, 'HTML');
 } elseif (preg_match('/extend_(\w+)/', $datain, $dataget)) {
     $username = $dataget[1];
 //     $textmounth = "🕔 برای خرید اشتراک مدت زمان سرویس خود را انتخاب کنید
