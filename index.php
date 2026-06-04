@@ -717,7 +717,7 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
 
 📅 فعال تا تاریخ : $expirationDate ($day)
     
-🚫 برای تغییر لینک و قطع دسترسی دیگران کافیست روی گزینه ' بروزرسانی اشتراک ' کلیک کنید.";
+🚫 برای قطع دسترسی دیگران و تغییر لینک اشتراک روی دکمه ' ⛔️ قطع دسترسی ' کلیک کنید.";
     Editmessagetext($from_id, $message_id, $textinfo, $keyboardsetting);
 }
 if (preg_match('/subscriptionurl_(\w+)/', $datain, $dataget)) {
