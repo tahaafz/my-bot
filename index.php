@@ -1431,9 +1431,7 @@ $link_config = "
     ]);
     $textcreatuser = "🔑 اشتراک تست شما با موفقیت ساخته شد.
 
-👤 نام کاربری شما : <code>$username_ac</code>
-
-❌ با خرید اشتراک به تمامی لوکیشن‌ها به صورت یکجا دسترسی پیدا می‌کنید";
+👤 نام کاربری شما : <code>$username_ac</code>";
     sendmessage($from_id, $textcreatuser, $usertestinfo, 'HTML');
     if (!empty($text_config)) {
         sendmessage($from_id, "🔗 کانفیگ‌های دستی اتصال:\n" . $text_config, null, 'HTML');
