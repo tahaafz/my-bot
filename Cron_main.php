@@ -8,8 +8,9 @@
  * ⚠️  قبل از اولین اجرا این SQL را یک‌بار روی دیتابیس اجرا کنید:
  * ─────────────────────────────────────────────────────────────
  *   ALTER TABLE invoice
- *     ADD COLUMN notif_3day_at DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN notif_1day_at DATETIME NULL DEFAULT NULL;
+ *     ADD COLUMN notif_3day_at   DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_1day_at   DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_expired_at DATETIME NULL DEFAULT NULL;
  * ─────────────────────────────────────────────────────────────
  *
  * نگاشت ستون‌های alert حجم (ستون‌های موجود، معنای اصلاح‌شده):
@@ -314,13 +315,15 @@ foreach ($byPanel as $panelName => $invoices) {
                 // اگر کاربر تمدید کرد و بیشتر از ۷ روز زمان داشت،
                 // فلگ‌ها ریست می‌شوند تا دوباره الرت دریافت کند
                 if ($remainSecs > 7 * 86400) {
-                    $needs_reset = (!is_null($row['notif_3day_at'] ?? null))
-                                || (!is_null($row['notif_1day_at'] ?? null));
+                    $needs_reset = (!is_null($row['notif_3day_at']    ?? null))
+                                || (!is_null($row['notif_1day_at']    ?? null))
+                                || (!is_null($row['notif_expired_at'] ?? null));
                     if ($needs_reset) {
                         $pdo->prepare("
                             UPDATE invoice
-                            SET notif_3day_at = NULL,
-                                notif_1day_at = NULL
+                            SET notif_3day_at    = NULL,
+                                notif_1day_at    = NULL,
+                                notif_expired_at = NULL
                             WHERE id_invoice = ?
                         ")->execute([$inv]);
                     }
@@ -328,8 +331,7 @@ foreach ($byPanel as $panelName => $invoices) {
 
                 if ($remainSecs <= 0) {
                     // ── سرویس منقضی شده ───────────────────────────
-                    // الرت منقضی: فقط یک‌بار (از notif_1day_at به عنوان فلگ استفاده می‌کنیم)
-                    if (is_null($row['notif_1day_at'] ?? null)) {
+                    if (is_null($row['notif_expired_at'] ?? null)) {
                         sendmessage($userId,
                             "🔴 <b>سرویس شما منقضی شده است</b>\n\n" .
                             "👤 نام کاربری: <code>$uname</code>\n\n" .
@@ -338,10 +340,11 @@ foreach ($byPanel as $panelName => $invoices) {
                         );
                         $pdo->prepare("
                             UPDATE invoice
-                            SET notif_1day_at = ?,
-                                notif_3day_at = COALESCE(notif_3day_at, ?)
+                            SET notif_expired_at = ?,
+                                notif_1day_at    = COALESCE(notif_1day_at, ?),
+                                notif_3day_at    = COALESCE(notif_3day_at, ?)
                             WHERE id_invoice = ?
-                        ")->execute([$now, $now, $inv]);
+                        ")->execute([$now, $now, $now, $inv]);
                     }
 
                     // ── حذف سرویس بعد از DELETE_AFTER_DAYS روز ───
