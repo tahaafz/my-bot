@@ -8,10 +8,18 @@
  * ⚠️  قبل از اولین اجرا این SQL را یک‌بار روی دیتابیس اجرا کنید:
  * ─────────────────────────────────────────────────────────────
  *   ALTER TABLE invoice
- *     ADD COLUMN notif_3day_at   DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN notif_1day_at   DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN notif_expired_at DATETIME NULL DEFAULT NULL;
+ *     ADD COLUMN notif_3day_at    DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_1day_at    DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_expired_at DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN deleted_at       DATETIME NULL DEFAULT NULL;
  * ─────────────────────────────────────────────────────────────
+ *
+ * وضعیت‌های status:
+ *   active           →  سرویس فعال
+ *   not_found        →  بار اول در پنل پیدا نشد
+ *   second_not_found →  بار دوم هم پیدا نشد
+ *   expired          →  منقضی شده (زمان)
+ *   deleted          →  سافت دیلیت (هیچ‌وقت از DB حذف نمی‌شود)
  *
  * نگاشت ستون‌های alert حجم (ستون‌های موجود، معنای اصلاح‌شده):
  *   `3_gig_notified_at`  →  الرت ۳ گیگابایت باقی‌مانده
@@ -69,7 +77,7 @@ $lockTime = date('Y-m-d H:i:s');
 $pdo->prepare("
     UPDATE invoice
     SET    live_check_locked_at = ?
-    WHERE  status IN ('active', 'not_found')
+    WHERE  status IN ('active', 'not_found', 'second_not_found')
       AND  (
                live_check_locked_at IS NULL
             OR live_check_locked_at < (NOW() - INTERVAL " . LOCK_TTL_MIN . " MINUTE)
@@ -83,7 +91,7 @@ $pdo->prepare("
 $stmt = $pdo->prepare("
     SELECT * FROM invoice
     WHERE  live_check_locked_at = ?
-      AND  status IN ('active', 'not_found')
+      AND  status IN ('active', 'not_found', 'second_not_found')
 ");
 $stmt->execute([$lockTime]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -150,20 +158,39 @@ foreach ($byPanel as $panelName => $invoices) {
                          || str_contains($errMsg, 'notfound');
 
                 if ($notFound) {
-                    if (($row['Status'] ?? $row['status'] ?? '') === 'not_found') {
-                        // ── بار دوم هم پیدا نشد → expired ────────
+                    $currentStatus = $row['Status'] ?? $row['status'] ?? '';
+
+                    if ($currentStatus === 'second_not_found') {
+                        // ── بار سوم پیدا نشد → سافت دیلیت ──────────
                         $pdo->prepare("
                             UPDATE invoice
-                            SET status               = 'expired',
+                            SET status               = 'deleted',
+                                deleted_at           = NOW(),
                                 live_check_last_at   = NOW(),
                                 live_check_locked_at = NULL
                             WHERE id_invoice = ?
                         ")->execute([$inv]);
-                        cron_log('user not in panel (2nd check) → marked expired', [
+                        cron_log('user not in panel (3rd check) → soft deleted', [
                             'inv'   => $inv,
                             'user'  => $uname,
                             'panel' => $panelName,
                         ]);
+
+                    } elseif ($currentStatus === 'not_found') {
+                        // ── بار دوم پیدا نشد → second_not_found ──
+                        $pdo->prepare("
+                            UPDATE invoice
+                            SET status               = 'second_not_found',
+                                live_check_last_at   = NOW(),
+                                live_check_locked_at = NULL
+                            WHERE id_invoice = ?
+                        ")->execute([$inv]);
+                        cron_log('user not in panel (2nd check) → marked second_not_found', [
+                            'inv'   => $inv,
+                            'user'  => $uname,
+                            'panel' => $panelName,
+                        ]);
+
                     } else {
                         // ── بار اول پیدا نشد → not_found ─────────
                         $pdo->prepare("
@@ -347,25 +374,24 @@ foreach ($byPanel as $panelName => $invoices) {
                         ")->execute([$now, $now, $now, $inv]);
                     }
 
-                    // ── حذف سرویس بعد از DELETE_AFTER_DAYS روز ───
+                    // ── سافت دیلیت بعد از DELETE_AFTER_DAYS روز ──
                     if ($remainDays !== PHP_INT_MAX && $remainDays <= -DELETE_AFTER_DAYS) {
                         $removeResult = $ManagePanel->RemoveUser($panelName, $uname);
-                        if (($removeResult['status'] ?? '') === 'successful') {
-                            $pdo->prepare("DELETE FROM invoice WHERE id_invoice = ?")->execute([$inv]);
-                            cron_log('service deleted (expired)', [
-                                'inv'  => $inv,
-                                'user' => $uname,
-                                'panel' => $panelName,
-                            ]);
-                            continue; // unlock لازم نیست — سطر حذف شد
-                        } else {
-                            cron_log('remove failed', [
-                                'inv'   => $inv,
-                                'user'  => $uname,
-                                'panel' => $panelName,
-                                'msg'   => $removeResult['msg'] ?? '',
-                            ]);
-                        }
+                        $pdo->prepare("
+                            UPDATE invoice
+                            SET status               = 'deleted',
+                                deleted_at           = NOW(),
+                                live_check_last_at   = NOW(),
+                                live_check_locked_at = NULL
+                            WHERE id_invoice = ?
+                        ")->execute([$inv]);
+                        cron_log('service soft-deleted (expired ' . abs((int)$remainDays) . ' days ago)', [
+                            'inv'         => $inv,
+                            'user'        => $uname,
+                            'panel'       => $panelName,
+                            'panel_remove' => ($removeResult['status'] ?? 'failed'),
+                        ]);
+                        continue;
                     }
 
                 } elseif (is_null($row['notif_1day_at'] ?? null) && $remainSecs < 86400) {
