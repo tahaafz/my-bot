@@ -1407,19 +1407,13 @@ $link_config = "
     } */
   //  if ($marzban_list_get['configManual'] == "onconfig") {
     //    $first = true;
-$config = "";
-$i = 0;
-
-foreach ($dataoutput['configs'] as $configs) {
-    $config .= "\n" . $configs;
-    $i++;
-
-    if ($i >= 2) {
-        break;
+    if (!empty($dataoutput['configs'])) {
+        foreach ($dataoutput['configs'] as $configs) {
+            $configs = trim($configs);
+            if (empty($configs)) continue;
+            $text_config .= "\n<code>" . htmlspecialchars($configs) . "</code>";
+        }
     }
-}
-        $text_config = $config;
-  //  }
     $usertestinfo = json_encode([
         'inline_keyboard' => [
             [
@@ -1435,36 +1429,16 @@ foreach ($dataoutput['configs'] as $configs) {
             ]
         ]
     ]);
-    $textcreatuser = "🔑 اشتراک شما با موفقیت ساخته شد.
-        
-👤 نام کاربری شما :<code>$username_ac</code>
+    $textcreatuser = "🔑 اشتراک تست شما با موفقیت ساخته شد.
 
-❌با خرید اشتراک به تمامی لوکیشن ها به صورت یکجا دسترسی پیدا میکنید
-        <code>$text_config</code>";
-    if ($marzban_list_get['sublink'] == "onsublink") {
-        $urlimage = "$from_id$randomString.png";
-        $writer = new PngWriter();
-        $qrCode = QrCode::create($output_config_link)
-            ->setEncoding(new Encoding('UTF-8'))
-            ->setErrorCorrectionLevel(ErrorCorrectionLevel::Low)
-            ->setSize(400)
-            ->setMargin(0)
-            ->setRoundBlockSizeMode(RoundBlockSizeMode::Margin);
-        $result = $writer->write($qrCode, null, null);
-        $result->saveToFile($urlimage);
-        telegram('sendphoto', [
-            'chat_id' => $from_id,
-            'photo' => new CURLFile($urlimage),
-            'reply_markup' => $usertestinfo,
-            'caption' => $textcreatuser,
-            'parse_mode' => "HTML",
-        ]);
-        sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
-        unlink($urlimage);
-    } else {
-        sendmessage($from_id, $textcreatuser, $usertestinfo, 'HTML');
-        sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
+👤 نام کاربری شما : <code>$username_ac</code>
+
+❌ با خرید اشتراک به تمامی لوکیشن‌ها به صورت یکجا دسترسی پیدا می‌کنید";
+    sendmessage($from_id, $textcreatuser, $usertestinfo, 'HTML');
+    if (!empty($text_config)) {
+        sendmessage($from_id, "🔗 کانفیگ‌های دستی اتصال:\n" . $text_config, null, 'HTML');
     }
+    sendmessage($from_id, $textbotlang['users']['selectoption'], $keyboard, 'HTML');
     step('home', $from_id);
     $limit_usertest = $user['limit_usertest'] - 1;
     update("user", "limit_usertest", $limit_usertest, "id", $from_id);
