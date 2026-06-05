@@ -8,10 +8,11 @@
  * ⚠️  قبل از اولین اجرا این SQL را یک‌بار روی دیتابیس اجرا کنید:
  * ─────────────────────────────────────────────────────────────
  *   ALTER TABLE invoice
- *     ADD COLUMN notif_3day_at    DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN notif_1day_at    DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN notif_expired_at DATETIME NULL DEFAULT NULL,
- *     ADD COLUMN deleted_at       DATETIME NULL DEFAULT NULL;
+ *     ADD COLUMN notif_3day_at     DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_1day_at     DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_expired_at  DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN notif_limited_at  DATETIME NULL DEFAULT NULL,
+ *     ADD COLUMN deleted_at        DATETIME NULL DEFAULT NULL;
  * ─────────────────────────────────────────────────────────────
  *
  * وضعیت‌های status:
@@ -77,7 +78,7 @@ $lockTime = date('Y-m-d H:i:s');
 $pdo->prepare("
     UPDATE invoice
     SET    live_check_locked_at = ?
-    WHERE  status IN ('active', 'not_found', 'second_not_found')
+    WHERE  status IN ('active', 'limited', 'not_found', 'second_not_found')
       AND  (
                live_check_locked_at IS NULL
             OR live_check_locked_at < (NOW() - INTERVAL " . LOCK_TTL_MIN . " MINUTE)
@@ -91,7 +92,7 @@ $pdo->prepare("
 $stmt = $pdo->prepare("
     SELECT * FROM invoice
     WHERE  live_check_locked_at = ?
-      AND  status IN ('active', 'not_found', 'second_not_found')
+      AND  status IN ('active', 'limited', 'not_found', 'second_not_found')
 ");
 $stmt->execute([$lockTime]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -260,7 +261,9 @@ foreach ($byPanel as $panelName => $invoices) {
                         UPDATE invoice
                         SET `3_gig_notified_at` = NULL,
                             `1_gig_notified_at` = NULL,
-                            `5_gig_notified_at` = NULL
+                            `5_gig_notified_at` = NULL,
+                            notif_limited_at    = NULL,
+                            Status              = 'active'
                         WHERE id_invoice = ?
                     ")->execute([$inv]);
 
@@ -329,6 +332,49 @@ foreach ($byPanel as $panelName => $invoices) {
                         $pdo->prepare("
                             UPDATE invoice SET `3_gig_notified_at` = ? WHERE id_invoice = ?
                         ")->execute([$now, $inv]);
+                    }
+                }
+            }
+
+            // ══════════════════════════════════════════════════════
+            //  وضعیت limited — حجم به اتمام رسیده
+            // ══════════════════════════════════════════════════════
+            if ($status === 'limited') {
+
+                // ── ثبت status در DB و ارسال نوتیف (یک‌بار) ──────
+                if (is_null($row['notif_limited_at'] ?? null)) {
+                    sendmessage($userId,
+                        "🚫 <b>حجم سرویس شما به اتمام رسید</b>\n\n" .
+                        "👤 نام کاربری: <code>$uname</code>\n\n" .
+                        "🔄 برای ادامه استفاده از منوی تمدید سرویس اقدام کنید.",
+                        null, 'HTML'
+                    );
+                    $pdo->prepare("
+                        UPDATE invoice
+                        SET Status           = 'limited',
+                            notif_limited_at = ?
+                        WHERE id_invoice = ?
+                    ")->execute([$now, $inv]);
+
+                } else {
+                    // ── اگر ۳ روز از limited شدن گذشت → سافت دیلیت ─
+                    $limitedSince = strtotime($row['notif_limited_at']);
+                    if ($limitedSince && (time() - $limitedSince) >= DELETE_AFTER_DAYS * 86400) {
+                        $ManagePanel->RemoveUser($panelName, $uname);
+                        $pdo->prepare("
+                            UPDATE invoice
+                            SET status               = 'deleted',
+                                deleted_at           = NOW(),
+                                live_check_last_at   = NOW(),
+                                live_check_locked_at = NULL
+                            WHERE id_invoice = ?
+                        ")->execute([$inv]);
+                        cron_log('service soft-deleted (limited 3+ days)', [
+                            'inv'   => $inv,
+                            'user'  => $uname,
+                            'panel' => $panelName,
+                        ]);
+                        continue;
                     }
                 }
             }
