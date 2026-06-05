@@ -149,7 +149,7 @@ foreach ($byPanel as $panelName => $invoices) {
                          || str_contains($errMsg, 'notfound');
 
                 if ($notFound) {
-                    if ($row['status'] === 'not_found') {
+                    if (($row['Status'] ?? $row['status'] ?? '') === 'not_found') {
                         // ── بار دوم هم پیدا نشد → expired ────────
                         $pdo->prepare("
                             UPDATE invoice
