@@ -421,7 +421,7 @@ if ($user['step'] == 'get_number') {
 
 #-----------Purchased services------------#
 if ($text == $datatextbot['text_Purchased_services'] || $datain == "backorder") {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status = 'active' AND marzban_panel.status = 1");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status IN ('active', 'limited') AND marzban_panel.status = 1");
     $stmt->bindParam(':id_user', $from_id);
     $stmt->execute();
     $invoices = (int)$stmt->fetchColumn();
@@ -433,7 +433,7 @@ if ($text == $datatextbot['text_Purchased_services'] || $datain == "backorder") 
     $page = 1;
     $items_per_page = 5;
     $start_index = ($page - 1) * $items_per_page;
-    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status = 'active' AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
+    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status IN ('active', 'limited') AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
     $stmt->bindParam(':id_user', $from_id);
     $stmt->execute();
     $keyboardlists = [
@@ -556,7 +556,7 @@ if ($user['step'] == "getusernameinfo") {
     step('home', $from_id);
 }
 if ($datain == 'next_page') {
-  $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status = 'active' AND marzban_panel.status = 1");
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status IN ('active', 'limited') AND marzban_panel.status = 1");
     $stmt->bindParam(':id_user', $from_id);
     $stmt->execute();
     $numpage = (int)$stmt->fetchColumn();
@@ -569,7 +569,7 @@ if ($datain == 'next_page') {
         $next_page = $page + 1;
     }
     $start_index = ($next_page - 1) * $items_per_page;
-    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status = 'active' AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
+    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status IN ('active', 'limited') AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
     $stmt->bindParam(':id_user', $from_id);
     $stmt->execute();
     $keyboardlists = [
@@ -606,7 +606,7 @@ if ($datain == 'next_page') {
         $next_page = $page - 1;
     }
     $start_index = ($next_page - 1) * $items_per_page;
-    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status = 'active' AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
+    $stmt = $pdo->prepare("SELECT invoice.* FROM invoice INNER JOIN marzban_panel ON marzban_panel.name_panel = invoice.Service_location WHERE invoice.id_user = :id_user AND invoice.status IN ('active', 'limited') AND marzban_panel.status = 1 ORDER BY invoice.username ASC LIMIT $start_index, $items_per_page");
     $stmt->bindParam(':id_user', $from_id);
     $stmt->execute();
     $keyboardlists = [
