@@ -1071,6 +1071,9 @@ telegram('sendMessage', [
                 sleep(3);
             }
         }
+        if ($renewMode === 'replaceVolume' && is_array($modifyResult) && ($modifyResult['status'] ?? '') === 'successful') {
+            $ManagePanel->ResetUserDataUsage($nameloc['Service_location'], $serviceUsername);
+        }
     }
 	    if (!is_array($modifyResult) || ($modifyResult['status'] ?? '') !== 'successful') {
 	        $stmt = $pdo->prepare("UPDATE user SET Balance = Balance + :price WHERE id = :id");
