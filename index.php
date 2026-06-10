@@ -350,7 +350,7 @@ if ($channels == false) {
     $channels['Channel_lock'] = "off";
     $channels['link'] = $textbotlang['users']['channel']['link'];
 }
-if (!in_array($tch, ['member', 'creator', 'administrator']) && $channels['Channel_lock'] == "on" && !in_array($from_id, $admin_ids) && (string)$from_id !== '259189002') {
+if (!in_array($tch, ['member', 'creator', 'administrator']) && $channels['Channel_lock'] == "on" && !in_array($from_id, $admin_ids) && (string)$from_id !== (string)$whitelist_user_id) {
     $link_channel = json_encode([
         'inline_keyboard' => [
             [
@@ -1021,7 +1021,7 @@ telegram('sendMessage', [
         $stmt->execute([':price' => $priceProduct, ':id' => $from_id]);
         update("user", "Processing_value_one", "none", "id", $from_id);
         sendmessage($from_id, "❌ در حال حاضر امکان دریافت اطلاعات سرویس از پنل وجود ندارد.\n\nمبلغ به کیف پول شما برگشت. لطفاً چند دقیقه دیگر مجدد تلاش کنید.", null, 'HTML');
-        sendmessage('501813541', "⚠️ خطا در دریافت اطلاعات سرویس (تمدید لغو شد)\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>", null, 'HTML');
+        sendmessage($report_admin_id,"⚠️ خطا در دریافت اطلاعات سرویس (تمدید لغو شد)\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>", null, 'HTML');
         return;
     }
         $preRemainGB  = round($remainingVolume / pow(1024, 3), 2);
@@ -1042,7 +1042,7 @@ telegram('sendMessage', [
 • مصرف شده : {$preUsedGB} گیگ
 • باقی‌مانده : {$preRemainGB} گیگ
 • انقضا : $preExpire";
-        sendmessage('501813541', $text_pre_report, null, 'HTML');
+        sendmessage($report_admin_id,$text_pre_report, null, 'HTML');
 
 
     $modifyResult = array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
@@ -1084,7 +1084,7 @@ telegram('sendMessage', [
 	        $msgPanel = is_array($modifyResult) ? ($modifyResult['msg'] ?? 'خطای نامشخص پنل') : 'پاسخ نامعتبر از پنل';
 	        $msgPanel = htmlspecialchars((string) $msgPanel, ENT_QUOTES, 'UTF-8');
 	        sendmessage($from_id, "❌ تمدید سرویس در پنل انجام نشد و مبلغ به کیف پول شما برگشت.\n\nلطفا مجدد امتحان کنید", null, 'HTML');
-	        sendmessage('501813541', "⚠️ خطا در تمدید سرویس\n\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>\n❌ خطای پنل: <code>$msgPanel</code>", null, 'HTML');
+	        sendmessage($report_admin_id,"⚠️ خطا در تمدید سرویس\n\n👤 یوزر: <code>$from_id</code> @$username\n🖥 پنل: {$nameloc['Service_location']}\n👤 نام کاربری پنل: <code>$usernamepanel</code>\n❌ خطای پنل: <code>$msgPanel</code>", null, 'HTML');
 	        return;
 	    }
     $keyboardextendfnished = json_encode([
@@ -1130,7 +1130,7 @@ telegram('sendMessage', [
 ✅ وضعیت بعد از تمدید :
 • حجم کل جدید : {$afterLimitGB} گیگ
 • انقضا جدید : $afterExpire";
-        sendmessage('501813541', $text_report, null, 'HTML');
+        sendmessage($report_admin_id,$text_report, null, 'HTML');
 
 if (!empty($setting['Channel_Report'])) {
         sendmessage($setting['Channel_Report'], $text_report, null, 'HTML');
@@ -1184,7 +1184,7 @@ if (!empty($setting['Channel_Report'])) {
     ]);
     sendmessage($from_id, $msg, $backKeyboard, 'HTML');
     $adminDeleteMsg = "🗑 یک کاربر سرویس خود را حذف کرد.\n\n🪪 آیدی: <code>$from_id</code>\n👤 نام کاربری پنل: <code>$username</code>\n📍 لوکیشن: {$nameloc['Service_location']}\n\n📊 حجم باقی‌مانده: {$remainingFormatted} گیگ\n💰 مبلغ بازگشتی: {$refundFormatted} تومان";
-    sendmessage('501813541', $adminDeleteMsg, null, 'HTML');
+    sendmessage($report_admin_id, $adminDeleteMsg, null, 'HTML');
     if (!empty($setting['Channel_Report'])) {
         sendmessage($setting['Channel_Report'], $adminDeleteMsg, null, 'HTML');
     }
@@ -2234,7 +2234,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
         $paymentkeyboard = json_encode([
             'inline_keyboard' => [
                 [
-                    ['text' => $textbotlang['users']['Balance']['payments'], 'url' => "https://" . "t.me/TronadoRobot?start=tw_TXXYqetxHGsUVCarRdQeMowhtZ2nEH7QgN_" . "$usdprice" . "_niminet"],
+                    ['text' => $textbotlang['users']['Balance']['payments'], 'url' => "https://t.me/TronadoRobot?start=tw_" . $tronado_wallet . "_" . $usdprice . "_niminet"],
                 ] 
             ]
         ]);
@@ -2285,19 +2285,19 @@ if ($text == $datatextbot['text_Add_Balance']) {
             die("Error: 'TronPriceToman' key not found in response");
         }
         $tomanAmount = $newprice / $toman;
-        $roundedValue = round((float)$tomanAmount, 3);
+        $roundedValue = round((float)$tomanAmount, 6);
           $data = [
             "PaymentID" => $randomStringasli,
-            "WalletAddress" => "TXXYqetxHGsUVCarRdQeMowhtZ2nEH7QgN",
+            "WalletAddress" => $tronado_wallet,
             "TronAmount" => $roundedValue,
             "CallbackUrl" => "https://iranai.top/bot/payment/tornado.php"
         ];
-    
+
         $jsonData = json_encode($data);
-        $ch = curl_init('https://bot.tronado.cloud/api/v2/GetOrderToken?wageFromBusinessPercentage=100');
+        $ch = curl_init('https://bot.tronado.cloud/api/v3/GetOrderToken?wageFromBusinessPercentage=100');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'x-api-key: 8nb89q34yvbusdty935yisufigsfshgsfdyf3478thjvfyyv783ghzvf78w3tpyufygt834v',
+            'x-api-key: ' . $tronado_api_key,
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -2313,6 +2313,8 @@ if ($text == $datatextbot['text_Add_Balance']) {
         
         $responseArray = json_decode($response, true);
         $paymentUrl = $responseArray['Data']['FullPaymentUrl'];
+        // Gateway's own toman figure (v3). Display this so the bot's amount matches the Tronado page.
+        $estimatedToman = $responseArray['Data']['EstimatedTomanAmount'] ?? null;
                 $paymentUrl2 = 'https://t.me/oboradmin?text=%D8%B3%D9%84%D8%A7%D9%85%20%D8%B6%D9%85%D9%86%20%D8%A2%DA%AF%D8%A7%D9%87%DB%8C%20%D8%A7%D8%B2%20%D9%88%D8%AC%D9%88%D8%AF%20%D8%A7%D9%81%D8%B2%D8%A7%DB%8C%D8%B4%20%D8%A7%D8%B9%D8%AA%D8%A8%D8%A7%D8%B1%20%D8%AE%D9%88%D8%AF%DA%A9%D8%A7%D8%B1%D8%8C%20%D8%B1%D9%88%D8%B4%20%D8%A7%D9%81%D8%B2%D8%A7%DB%8C%D8%B4%20%D8%A7%D8%B9%D8%AA%D8%A8%D8%A7%D8%B1%20%D8%A8%D8%A7%20%D8%AA%D8%A7%D8%AE%DB%8C%D8%B1%20%D9%88%20%D8%A8%D8%A7%20%DA%A9%D9%85%DA%A9%20%D9%BE%D8%B4%D8%AA%DB%8C%D8%A8%D8%A7%D9%86%DB%8C%20%D8%B1%D9%88%20%D8%AF%D8%B1%20%D8%B1%D8%A8%D8%A7%D8%AA%20%D9%86%DB%8C%D9%85%20%D9%86%D8%AA%20%D8%A7%D9%86%D8%AA%D8%AE%D8%A7%D8%A8%20%DA%A9%D8%B1%D8%AF%D9%87%20%D8%A7%D9%85%20%D9%84%D8%B7%D9%81%D8%A7%20%D8%AF%D8%B1%20%D8%A7%D9%88%D9%84%DB%8C%D9%86%20%D9%81%D8%B1%D8%B5%D8%AA%20%D8%B1%D8%A7%D9%87%D9%86%D9%85%D8%A7%DB%8C%DB%8C%20%DA%A9%D9%86%DB%8C%D8%AF';
         if($newprice >= 75000){
             $paymentkeyboard = json_encode([
@@ -2339,13 +2341,16 @@ if ($text == $datatextbot['text_Add_Balance']) {
                 ]
             ]
         ]); }
-        $user['Processing_value'] = number_format($user['Processing_value'], 0);
+        // Prefer the gateway's EstimatedTomanAmount so the displayed figure equals what's charged.
+        $displayToman = ($estimatedToman !== null && (float)$estimatedToman > 0)
+            ? number_format((float)$estimatedToman, 0)
+            : number_format($user['Processing_value'], 0);
 
         $textnowpayments = "
 ✅ فاکتور پرداخت ایجاد شد.
-        
+
 🔢 شماره فاکتور : $randomStringasli
-💰 مبلغ فاکتور : {$user['Processing_value']} تومان
+💰 مبلغ فاکتور : {$displayToman} تومان
 ⚠️ حداقل واریز مبلغ 200 هزارتومان است.
 ⚜️ آموزش ویدیویی پرداخت: https://t.me/nimnet2/445
     
@@ -2668,7 +2673,7 @@ if (!empty($setting['Channel_Report'])) {
 ✍️ در صورت درست بودن رسید پرداخت را تایید نمایید.";
     // foreach ($admin_ids as $id_admin) {
         telegram('sendphoto', [
-            'chat_id' => '6446084191',
+            'chat_id' => $receipt_admin_id,
             'photo' => $photoid,
             'reply_markup' => $Confirm_pay,
             'caption' => $textsendrasid,

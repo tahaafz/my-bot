@@ -516,7 +516,45 @@ try {
         if (mysqli_num_rows($Check_filde) != 1) {
             $connect->query("ALTER TABLE Payment_report ADD Payment_Method VARCHAR(1000)");
             echo "The Payment_Method field was added ✅";
-        }   
+        }
+      $Check_credited = $connect->query("SHOW COLUMNS FROM Payment_report LIKE 'credited_toman'");
+        if (mysqli_num_rows($Check_credited) != 1) {
+            $connect->query("ALTER TABLE Payment_report ADD credited_toman BIGINT NULL");
+            echo "The credited_toman field was added ✅";
+        }
+    }
+} catch (Exception $e) {
+    file_put_contents("$randomString.txt",$e->getMessage());
+}
+//-----------------------------------------------------------------
+try {
+
+    $result = $connect->query("SHOW TABLES LIKE 'payments'");
+    $table_exists = ($result->num_rows > 0);
+
+    if (!$table_exists) {
+        $result = $connect->query("CREATE TABLE payments (
+        id INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        UniqueCode varchar(255) NULL,
+        PaymentID varchar(255) NULL,
+        UserTelegramId varchar(255) NULL,
+        Wallet varchar(255) NULL,
+        Hash varchar(255) NULL,
+        TronAmount varchar(100) NULL,
+        ActualTronAmount varchar(100) NULL,
+        IsPaid TINYINT(1) NULL,
+        PaymentDate varchar(100) NULL)
+        ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_bin");
+        if (!$result) {
+            echo "table payments".mysqli_error($connect);
+        }
+    }
+    else{
+      $Check_actual = $connect->query("SHOW COLUMNS FROM payments LIKE 'ActualTronAmount'");
+        if (mysqli_num_rows($Check_actual) != 1) {
+            $connect->query("ALTER TABLE payments ADD ActualTronAmount varchar(100) NULL");
+            echo "The ActualTronAmount field was added ✅";
+        }
     }
 } catch (Exception $e) {
     file_put_contents("$randomString.txt",$e->getMessage());

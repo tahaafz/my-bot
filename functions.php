@@ -142,6 +142,49 @@ function StatusPayment($paymentid){
     curl_close($curl);
     return $response;
 }
+
+// ===== Tronado (TRON) gateway helpers =====
+const TRONADO_BASE = 'https://bot.tronado.cloud';
+
+// Low-level POST to a Tronado endpoint. Returns decoded array or null on failure.
+// API key comes from config.php ($tronado_api_key).
+function tronadoPost($path, array $body = []) {
+    global $tronado_api_key;
+    $ch = curl_init(TRONADO_BASE . $path);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'x-api-key: ' . $tronado_api_key,
+        'Content-Type: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        error_log('Tronado curl error (' . $path . '): ' . curl_error($ch));
+        curl_close($ch);
+        return null;
+    }
+    curl_close($ch);
+    $decoded = json_decode($response, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+// Current TRON->Toman price. Returns float rate or null on failure.
+function tronadoPriceToman() {
+    $res = tronadoPost('/Tron/GetPriceToToman');
+    if (isset($res['TronPriceToman']) && $res['TronPriceToman'] > 0) {
+        return (float) $res['TronPriceToman'];
+    }
+    return null;
+}
+
+// Authoritative order status looked up by OUR PaymentID.
+// Returns decoded array (IsPaid, OrderStatusID, ActualTronAmount, TronAmount, Hash, Wallet, PaymentDate) or null.
+function tronadoStatusByPaymentID($paymentId) {
+    return tronadoPost('/Order/GetStatusByPaymentID', ['Id' => $paymentId]);
+}
+
 function formatBytes($bytes, $precision = 2): string
 {
     $base = log($bytes, 1024);
