@@ -185,6 +185,26 @@ function tronadoStatusByPaymentID($paymentId) {
     return tronadoPost('/Order/GetStatusByPaymentID', ['Id' => $paymentId]);
 }
 
+// کارمزد درگاه ترونادو (درصد). با احتساب اینکه کسب‌وکار کارمزد را می‌پردازد.
+const TRONADO_WAGE_PERCENT = 20;
+
+// مبلغ تومانی که باید به کیف پول کاربر اضافه شود را با احتساب مالیات/کارمزد درگاه حساب می‌کند.
+// چون کارمزد توسط کسب‌وکار پرداخت می‌شود (نه کاربر)، ترون خالصِ رسیده را به مقدار ناخالص
+// (معادل چیزی که کاربر واقعاً پرداخت کرده) برمی‌گردانیم و سقف آن را مبلغ درخواستی می‌گذاریم.
+//   پرداخت کامل → دقیقاً مبلغ درخواستی؛ پرداخت ناقص → به همان نسبت؛ هیچ‌وقت بیشتر از درخواستی.
+function tronadoCreditToman($actualTron, $rate, $requestedPrice)
+{
+    $actualTron = (float) $actualTron;
+    $rate       = (float) $rate;
+    if ($actualTron <= 0 || $rate <= 0) {
+        return 0;
+    }
+    $net   = $actualTron * $rate;
+    $wage  = TRONADO_WAGE_PERCENT / 100;
+    $gross = $wage < 1 ? $net / (1 - $wage) : $net;
+    return (int) min(floor($gross), (int) $requestedPrice);
+}
+
 // Build the main-menu reply keyboard for a SPECIFIC recipient.
 // Self-contained (queries textbot labels once, cached) so it works in both
 // index.php and the cron jobs. The "ادمین" button is added only when the

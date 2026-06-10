@@ -103,7 +103,8 @@ if ($paidTron === null || $paidTron <= 0 || $rate === null) {
     return;
 }
 
-$creditToman = (int) floor($paidTron * $rate);
+// مبلغ با احتساب کارمزد درگاه (کارمزد سهم کسب‌وکار است، نه کاربر) و سقفِ مبلغ درخواستی.
+$creditToman = tronadoCreditToman($paidTron, $rate, (int) $Payment_report['price']);
 
 // --- Credit the wallet by the actual amount ---
 $userRow        = select("user", "*", "id", $Payment_report['id_user'], "select");
