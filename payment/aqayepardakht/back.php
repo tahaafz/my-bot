@@ -47,7 +47,7 @@ if ($result->code == "1") {
     update("Payment_report", "payment_Status", "paid", "id",$Payment_report['id_order']);
     sendmessage($Payment_report['id_user'],"💎 کاربر گرامی مبلغ $price تومان به کیف پول شما واریز گردید با تشکر از پرداخت شما.
     
-    🛒 کد پیگیری شما: {$Payment_report['id_order']}",null,'HTML');
+    🛒 کد پیگیری شما: {$Payment_report['id_order']}",mainMenuKeyboard($Payment_report['id_user']),'HTML');
     $setting = select("setting", "*");
 $text_report = "💵 پرداخت جدید
         

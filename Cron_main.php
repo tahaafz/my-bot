@@ -284,54 +284,67 @@ foreach ($byPanel as $panelName => $invoices) {
                 }
 
                 // ── ارسال الرت (از کمترین به بیشترین، فقط یک‌بار) ─
+                //    الگوی claim-then-send: ابتدا فلگ به صورت اتمیک ثبت می‌شود
+                //    (UPDATE ... WHERE flag IS NULL) و فقط در صورت موفقیت پیام
+                //    ارسال می‌شود؛ بنابراین حتی اگر یک سرویس همزمان دوبار پردازش
+                //    شود، هر الرت فقط یک‌بار ارسال می‌گردد.
                 if ($remaining > 0) {
 
                     if (is_null($row['5_gig_notified_at']) && $remaining <= BYTES_500M) {
-                        // ۵۰۰ مگابایت
-                        sendmessage($userId,
-                            "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
-                            "کمتر از <b>۵۰۰ مگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
-                            "👤 نام کاربری: <code>$uname</code>\n\n" .
-                            "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
-                            null, 'HTML'
-                        );
-                        // ثبت همه فلگ‌های بالاتر به صورت COALESCE (اگر قبلاً ست نشده)
-                        $pdo->prepare("
+                        // ۵۰۰ مگابایت — ثبت همه فلگ‌های بالاتر به صورت COALESCE
+                        $claim = $pdo->prepare("
                             UPDATE invoice
                             SET `5_gig_notified_at` = ?,
                                 `1_gig_notified_at` = COALESCE(`1_gig_notified_at`, ?),
                                 `3_gig_notified_at` = COALESCE(`3_gig_notified_at`, ?)
-                            WHERE id_invoice = ?
-                        ")->execute([$now, $now, $now, $inv]);
+                            WHERE id_invoice = ? AND `5_gig_notified_at` IS NULL
+                        ");
+                        $claim->execute([$now, $now, $now, $inv]);
+                        if ($claim->rowCount() > 0) {
+                            sendmessage($userId,
+                                "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
+                                "کمتر از <b>۵۰۰ مگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
+                                "👤 نام کاربری: <code>$uname</code>\n\n" .
+                                "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
+                                mainMenuKeyboard($userId), 'HTML'
+                            );
+                        }
 
                     } elseif (is_null($row['1_gig_notified_at']) && $remaining <= BYTES_1G) {
                         // ۱ گیگابایت
-                        sendmessage($userId,
-                            "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
-                            "کمتر از <b>۱ گیگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
-                            "👤 نام کاربری: <code>$uname</code>\n\n" .
-                            "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
-                            null, 'HTML'
-                        );
-                        $pdo->prepare("
+                        $claim = $pdo->prepare("
                             UPDATE invoice
                             SET `1_gig_notified_at` = ?,
                                 `3_gig_notified_at` = COALESCE(`3_gig_notified_at`, ?)
-                            WHERE id_invoice = ?
-                        ")->execute([$now, $now, $inv]);
+                            WHERE id_invoice = ? AND `1_gig_notified_at` IS NULL
+                        ");
+                        $claim->execute([$now, $now, $inv]);
+                        if ($claim->rowCount() > 0) {
+                            sendmessage($userId,
+                                "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
+                                "کمتر از <b>۱ گیگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
+                                "👤 نام کاربری: <code>$uname</code>\n\n" .
+                                "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
+                                mainMenuKeyboard($userId), 'HTML'
+                            );
+                        }
 
                     } elseif (is_null($row['3_gig_notified_at']) && $remaining <= BYTES_3G) {
                         // ۳ گیگابایت
-                        sendmessage($userId,
-                            "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
-                            "کمتر از <b>۳ گیگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
-                            "👤 نام کاربری: <code>$uname</code>\n\n" .
-                            "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
-                            null, 'HTML'
-                        );
-                        $pdo->prepare("
-                            UPDATE invoice SET `3_gig_notified_at` = ? WHERE id_invoice = ?
-                        ")->execute([$now, $inv]);
+                        $claim = $pdo->prepare("
+                            UPDATE invoice SET `3_gig_notified_at` = ?
+                            WHERE id_invoice = ? AND `3_gig_notified_at` IS NULL
+                        ");
+                        $claim->execute([$now, $inv]);
+                        if ($claim->rowCount() > 0) {
+                            sendmessage($userId,
+                                "⚠️ <b>هشدار حجم سرویس</b>\n\n" .
+                                "کمتر از <b>۳ گیگابایت</b> از حجم سرویس شما باقی مانده است.\n\n" .
+                                "👤 نام کاربری: <code>$uname</code>\n\n" .
+                                "🔄 برای جلوگیری از قطعی سرویس از منوی تمدید اقدام کنید.",
+                                mainMenuKeyboard($userId), 'HTML'
+                            );
+                        }
                     }
                 }
             }
@@ -341,20 +354,23 @@ foreach ($byPanel as $panelName => $invoices) {
             // ══════════════════════════════════════════════════════
             if ($status === 'limited') {
 
-                // ── ثبت status در DB و ارسال نوتیف (یک‌بار) ──────
+                // ── ثبت status در DB و ارسال نوتیف (یک‌بار، اتمیک) ──
                 if (is_null($row['notif_limited_at'] ?? null)) {
-                    sendmessage($userId,
-                        "🚫 <b>حجم سرویس شما به اتمام رسید</b>\n\n" .
-                        "👤 نام کاربری: <code>$uname</code>\n\n" .
-                        "🔄 برای ادامه استفاده از منوی تمدید سرویس اقدام کنید.",
-                        null, 'HTML'
-                    );
-                    $pdo->prepare("
+                    $claim = $pdo->prepare("
                         UPDATE invoice
                         SET Status           = 'limited',
                             notif_limited_at = ?
-                        WHERE id_invoice = ?
-                    ")->execute([$now, $inv]);
+                        WHERE id_invoice = ? AND notif_limited_at IS NULL
+                    ");
+                    $claim->execute([$now, $inv]);
+                    if ($claim->rowCount() > 0) {
+                        sendmessage($userId,
+                            "🚫 <b>حجم سرویس شما به اتمام رسید</b>\n\n" .
+                            "👤 نام کاربری: <code>$uname</code>\n\n" .
+                            "🔄 برای ادامه استفاده از منوی تمدید سرویس اقدام کنید.",
+                            mainMenuKeyboard($userId), 'HTML'
+                        );
+                    }
 
                 } else {
                     // ── اگر ۳ روز از limited شدن گذشت → سافت دیلیت ─
@@ -405,19 +421,22 @@ foreach ($byPanel as $panelName => $invoices) {
                 if ($remainSecs <= 0) {
                     // ── سرویس منقضی شده ───────────────────────────
                     if (is_null($row['notif_expired_at'] ?? null)) {
-                        sendmessage($userId,
-                            "🔴 <b>سرویس شما منقضی شده است</b>\n\n" .
-                            "👤 نام کاربری: <code>$uname</code>\n\n" .
-                            "🔄 برای جلوگیری از حذف دائمی، از منوی تمدید سرویس اقدام کنید.",
-                            null, 'HTML'
-                        );
-                        $pdo->prepare("
+                        $claim = $pdo->prepare("
                             UPDATE invoice
                             SET notif_expired_at = ?,
                                 notif_1day_at    = COALESCE(notif_1day_at, ?),
                                 notif_3day_at    = COALESCE(notif_3day_at, ?)
-                            WHERE id_invoice = ?
-                        ")->execute([$now, $now, $now, $inv]);
+                            WHERE id_invoice = ? AND notif_expired_at IS NULL
+                        ");
+                        $claim->execute([$now, $now, $now, $inv]);
+                        if ($claim->rowCount() > 0) {
+                            sendmessage($userId,
+                                "🔴 <b>سرویس شما منقضی شده است</b>\n\n" .
+                                "👤 نام کاربری: <code>$uname</code>\n\n" .
+                                "🔄 برای جلوگیری از حذف دائمی، از منوی تمدید سرویس اقدام کنید.",
+                                mainMenuKeyboard($userId), 'HTML'
+                            );
+                        }
                     }
 
                     // ── سافت دیلیت بعد از DELETE_AFTER_DAYS روز ──
@@ -442,32 +461,39 @@ foreach ($byPanel as $panelName => $invoices) {
 
                 } elseif (is_null($row['notif_1day_at'] ?? null) && $remainSecs < 86400) {
                     // ── کمتر از ۱ روز ────────────────────────────
-                    sendmessage($userId,
-                        "⚠️ <b>هشدار زمان سرویس</b>\n\n" .
-                        "کمتر از <b>۱ روز</b> به پایان زمان سرویس شما مانده است.\n\n" .
-                        "👤 نام کاربری: <code>$uname</code>\n\n" .
-                        "🔄 از منوی تمدید سرویس اقدام کنید.",
-                        null, 'HTML'
-                    );
-                    $pdo->prepare("
+                    $claim = $pdo->prepare("
                         UPDATE invoice
                         SET notif_1day_at  = ?,
                             notif_3day_at  = COALESCE(notif_3day_at, ?)
-                        WHERE id_invoice = ?
-                    ")->execute([$now, $now, $inv]);
+                        WHERE id_invoice = ? AND notif_1day_at IS NULL
+                    ");
+                    $claim->execute([$now, $now, $inv]);
+                    if ($claim->rowCount() > 0) {
+                        sendmessage($userId,
+                            "⚠️ <b>هشدار زمان سرویس</b>\n\n" .
+                            "کمتر از <b>۱ روز</b> به پایان زمان سرویس شما مانده است.\n\n" .
+                            "👤 نام کاربری: <code>$uname</code>\n\n" .
+                            "🔄 از منوی تمدید سرویس اقدام کنید.",
+                            mainMenuKeyboard($userId), 'HTML'
+                        );
+                    }
 
                 } elseif (is_null($row['notif_3day_at'] ?? null) && $remainSecs < 259200) {
                     // ── کمتر از ۳ روز ────────────────────────────
-                    sendmessage($userId,
-                        "⚠️ <b>هشدار زمان سرویس</b>\n\n" .
-                        "کمتر از <b>۳ روز</b> به پایان زمان سرویس شما مانده است.\n\n" .
-                        "👤 نام کاربری: <code>$uname</code>\n\n" .
-                        "🔄 از منوی تمدید سرویس اقدام کنید.",
-                        null, 'HTML'
-                    );
-                    $pdo->prepare("
-                        UPDATE invoice SET notif_3day_at = ? WHERE id_invoice = ?
-                    ")->execute([$now, $inv]);
+                    $claim = $pdo->prepare("
+                        UPDATE invoice SET notif_3day_at = ?
+                        WHERE id_invoice = ? AND notif_3day_at IS NULL
+                    ");
+                    $claim->execute([$now, $inv]);
+                    if ($claim->rowCount() > 0) {
+                        sendmessage($userId,
+                            "⚠️ <b>هشدار زمان سرویس</b>\n\n" .
+                            "کمتر از <b>۳ روز</b> به پایان زمان سرویس شما مانده است.\n\n" .
+                            "👤 نام کاربری: <code>$uname</code>\n\n" .
+                            "🔄 از منوی تمدید سرویس اقدام کنید.",
+                            mainMenuKeyboard($userId), 'HTML'
+                        );
+                    }
                 }
             }
 

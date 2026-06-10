@@ -1960,7 +1960,7 @@ if (!empty($setting['Channel_Report'])) {
         $textadd = "🎁  پرداخت پورسانت 
     
 مبلغ $result تومان به حساب شما از طرف  زیر مجموعه تان به کیف پول شما واریز گردید";
-        sendmessage($user['affiliates'], $textadd, null, 'HTML');
+        sendmessage($user['affiliates'], $textadd, mainMenuKeyboard($user['affiliates']), 'HTML');
     }
     $link_config = "";
     $text_config = "";
@@ -3288,7 +3288,7 @@ if ($text == "✍️ ارسال پیام برای یک کاربر") {
                     👤 یک پیام از طرف ادمین ارسال شده است  
     متن پیام:
                 {$user['Processing_value']}";
-    sendmessage($text, $textsendadmin, null, 'HTML');
+    sendmessage($text, $textsendadmin, mainMenuKeyboard($text), 'HTML');
     sendmessage($from_id, $textbotlang['Admin']['ManageUser']['MessageSent'], $keyboardadmin, 'HTML');
     step('home', $from_id);
 }
@@ -3750,7 +3750,7 @@ if (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget)) {
             
             🛒 کد پیگیری شما: {$Payment_report['id_order']}
 
-🚨 اکنون لازم است بار دیگر از طریق منوی خرید سرویس اشتراک خود را انتخاب کنید", null, 'HTML');
+🚨 اکنون لازم است بار دیگر از طریق منوی خرید سرویس اشتراک خود را انتخاب کنید", mainMenuKeyboard($Payment_report['id_user']), 'HTML');
     // Update limit_usertest in the database
     $text_report = "📣 یک ادمین رسید پرداخت کارت به کارت را تایید کرد.
     
@@ -4046,7 +4046,7 @@ if ($text == "⬆️️️ افزایش موجودی کاربر") {
     update("user", "Balance", $Balance_add_user, "id", $user['Processing_value']);
     $text = number_format($text);
     $textadd = "💎 کاربر عزیز مبلغ $text تومان به موجودی کیف پول تان اضافه گردید.";
-    sendmessage($user['Processing_value'], $textadd, null, 'HTML');
+    sendmessage($user['Processing_value'], $textadd, mainMenuKeyboard($user['Processing_value']), 'HTML');
     step('home', $from_id);
 }
 #-------------------------#

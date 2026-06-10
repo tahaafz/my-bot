@@ -121,7 +121,7 @@ $creditFmt = number_format($creditToman);
 sendmessage(
     $Payment_report['id_user'],
     "💎 کاربر گرامی مبلغ {$creditFmt} تومان به کیف پول شما واریز گردید با تشکر از پرداخت شما.\n\n🛒 کد پیگیری شما: {$paymentId}",
-    null,
+    mainMenuKeyboard($Payment_report['id_user']),
     'HTML'
 );
 

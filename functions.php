@@ -185,6 +185,62 @@ function tronadoStatusByPaymentID($paymentId) {
     return tronadoPost('/Order/GetStatusByPaymentID', ['Id' => $paymentId]);
 }
 
+// Build the main-menu reply keyboard for a SPECIFIC recipient.
+// Self-contained (queries textbot labels once, cached) so it works in both
+// index.php and the cron jobs. The "ادمین" button is added only when the
+// RECIPIENT is an admin — so an admin sending to a normal user never leaks it.
+// Returns a JSON reply keyboard, or null if labels are missing (so the message
+// still sends and the user's existing persistent keyboard is kept).
+function mainMenuKeyboard($targetId)
+{
+    global $pdo, $admin_ids;
+    static $labels = null;
+
+    if ($labels === null) {
+        $labels = [
+            'text_sell'               => '',
+            'text_usertest'           => '',
+            'text_Purchased_services' => '',
+            'text_Add_Balance'        => '',
+            'text_support'            => '',
+            'text_help'               => '',
+        ];
+        try {
+            $stmt = $pdo->query("SELECT id_text, text FROM textbot");
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                if (array_key_exists($r['id_text'], $labels)) {
+                    $labels[$r['id_text']] = $r['text'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // اگر جدول/ستون نبود، با لیبل خالی ادامه می‌دهیم
+        }
+    }
+
+    // اگر هر کدام از لیبل‌ها خالی باشد، کیبورد نامعتبر می‌شود و کل پیام رد می‌شود؛
+    // در این حالت null برمی‌گردانیم تا پیام بدون دکمه ولی سالم ارسال شود.
+    foreach ($labels as $v) {
+        if ($v === '' || $v === null) {
+            return null;
+        }
+    }
+
+    $kb = [
+        'keyboard' => [
+            [['text' => $labels['text_sell']],               ['text' => $labels['text_usertest']]],
+            [['text' => $labels['text_Purchased_services']], ['text' => $labels['text_Add_Balance']]],
+            [['text' => $labels['text_support']],            ['text' => $labels['text_help']]],
+        ],
+        'resize_keyboard' => true,
+    ];
+
+    if (is_array($admin_ids) && in_array($targetId, $admin_ids)) {
+        $kb['keyboard'][] = [['text' => 'ادمین']];
+    }
+
+    return json_encode($kb);
+}
+
 function formatBytes($bytes, $precision = 2): string
 {
     $base = log($bytes, 1024);

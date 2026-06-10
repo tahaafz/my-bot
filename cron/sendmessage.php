@@ -22,7 +22,7 @@ if(count($userid) == 0){
 }
 foreach ($userid as $iduser){
         if($count == 20)break;
-            sendmessage($iduser->id, $info['text'], $keyboard, 'HTML');
+            sendmessage($iduser->id, $info['text'], mainMenuKeyboard($iduser->id), 'HTML');
         unset($userid[0]);
         $userid = array_values($userid);
         $count +=1;
