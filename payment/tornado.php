@@ -126,6 +126,16 @@ sendmessage(
     'HTML'
 );
 
+// --- Notify admin ---
+if (!empty($report_admin_id)) {
+    sendmessage(
+        $report_admin_id,
+        "💵 شارژ کیف پول (ترونادو)\n\n👤 آیدی کاربر : {$Payment_report['id_user']}\n💰 مبلغ واریزی : {$creditFmt} تومان\n🪙 مقدار ترون : {$paidTron}\n🛒 کد پیگیری : {$paymentId}",
+        null,
+        'HTML'
+    );
+}
+
 // --- Channel report ---
 $setting = select("setting", "*");
 if (!empty($setting['Channel_Report'])) {
