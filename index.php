@@ -126,7 +126,7 @@ function customErrorHandler($errno, $errstr, $errfile, $errline) {
 
 function walletChargeMinimum($user): int
 {
-    return 200000;
+    return 150000;
 }
 
 set_error_handler("customErrorHandler");
@@ -2159,7 +2159,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
     $minimumCharge = walletChargeMinimum($user);
     if ($text > 3000000 or $text < $minimumCharge) {
         $minimumChargeFormatted = number_format($minimumCharge);
-        return sendmessage($from_id, "❌ مبلغ نامعتبر است.\n\nحداقل مبلغ شارژ {$minimumChargeFormatted} تومان و حداکثر ۳,۰۰۰,۰۰۰ تومان می‌باشد.", null, 'HTML');
+        return sendmessage($from_id, "❌ مبلغ نامعتبر است.\n\nحداقل مبلغ شارژ {$minimumChargeFormatted} تومان و حداکثر 3,000,000 تومان می‌باشد.", null, 'HTML');
     }
     update("user", "Processing_value", $text, "id", $from_id);
     sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
@@ -2195,7 +2195,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
     
 🌅 عکس رسید خود را در این مرحله ارسال نمایید. 
     
-⚠️ حداقل واریز مبلغ 200 هزارتومان است.
+⚠️ حداقل واریز مبلغ 150 هزارتومان است.
 ⚠️ مسئولیت واریز اشتباهی با شماست.";
         $paymentMessage = sendmessage($from_id, $textcart, $backuser, 'Markdown');
         $paymentMessageId = $paymentMessage->result->message_id ?? null;
@@ -2351,7 +2351,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
 
 🔢 شماره فاکتور : $randomStringasli
 💰 مبلغ فاکتور : {$displayToman} تومان
-⚠️ حداقل واریز مبلغ 200 هزارتومان است.
+⚠️ حداقل واریز مبلغ 150 هزارتومان است.
 ⚜️ آموزش ویدیویی پرداخت: https://t.me/nimnet2/445
     
     جهت پرداخت از دکمه زیر استفاده کنید👇🏻";
