@@ -949,9 +949,9 @@ telegram('sendMessage', [
         $extRemainSec = max(0, (int)($procVal['expire'] ?? 0) - time());
         $extRemainGB  = max(0, ((float)($procVal['data_limit'] ?? 0) - (float)($procVal['used_traffic'] ?? 0)) / (1024 ** 3));
         if ($extRemainSec > 86400 && $extRemainGB > 1) {
-            $extDays  = round($extRemainSec / 86400, 1);
-            $extGBFmt = round($extRemainGB, 2);
-            $replaceWarning = "\n\n⚠️ <b>هشدار:</b> حجم باقی‌مانده (<b>{$extGBFmt} گیگ</b> و <b>{$extDays} روز</b>) پس از تمدید حذف می‌شود و قابل انتقال به ماه آینده نیست.\n💡 پیشنهاد می‌شود در آخرین روز سرویس اقدام به تمدید کنید.";
+            $extDays  = (int) floor($extRemainSec / 86400) + 1;
+            $extGBFmt = round($extRemainGB, 1);
+            $replaceWarning = "\n\n⚠️ هشدار: حجم باقی‌مانده ({$extGBFmt} گیگ و {$extDays} روز) پس از تمدید حذف می‌شود و قابل انتقال به ماه آینده نیست.\n💡 پیشنهاد می‌شود در آخرین روز سرویس اقدام به تمدید کنید.";
         }
     }
 
