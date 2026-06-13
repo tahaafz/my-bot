@@ -46,6 +46,12 @@ function sendvideo($chat_id,$videoid,$caption){
         'caption'=> $caption,
     ]);
 }
+function pinChatMessage($chat_id, $message_id) {
+    telegram('pinChatMessage', [
+        'chat_id'    => $chat_id,
+        'message_id' => $message_id,
+    ]);
+}
 function Editmessagetext($chat_id, $message_id, $text, $keyboard){
     telegram('editmessagetext', [
         'chat_id' => $chat_id,

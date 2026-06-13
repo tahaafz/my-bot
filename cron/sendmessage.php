@@ -22,7 +22,10 @@ if(count($userid) == 0){
 }
 foreach ($userid as $iduser){
         if($count == 20)break;
-            sendmessage($iduser->id, $info['text'], mainMenuKeyboard($iduser->id), 'HTML');
+            $sent = sendmessage($iduser->id, $info['text'], mainMenuKeyboard($iduser->id), 'HTML');
+            if (!empty($info['pin']) && $sent && isset($sent->result->message_id)) {
+                pinChatMessage($iduser->id, $sent->result->message_id);
+            }
         unset($userid[0]);
         $userid = array_values($userid);
         $count +=1;

@@ -718,6 +718,12 @@ if (preg_match('/product_(\w+)/', $datain, $dataget)) {
 📅 فعال تا تاریخ : $expirationDate ($day)
     
 🚫 برای قطع دسترسی دیگران و تغییر لینک اشتراک روی دکمه ' ⛔️ قطع دسترسی ' کلیک کنید.";
+    update("user", "Processing_value", json_encode([
+        'username'     => $username,
+        'expire'       => $DataUserOut['expire']       ?? 0,
+        'data_limit'   => $DataUserOut['data_limit']   ?? 0,
+        'used_traffic' => $DataUserOut['used_traffic'] ?? 0,
+    ]), "id", $from_id);
     Editmessagetext($from_id, $message_id, $textinfo, $keyboardsetting);
 }
 if (preg_match('/subscriptionurl_(\w+)/', $datain, $dataget)) {
@@ -853,7 +859,10 @@ telegram('sendMessage', [
         Editmessagetext($from_id, $message_id, $textbotlang['users']['sell']['service_not_available'], null);
         return;
     }
-    update("user", "Processing_value", $username, "id", $from_id);
+    $existingProc = json_decode($user['Processing_value'] ?? '', true);
+    if (!is_array($existingProc) || ($existingProc['username'] ?? '') !== $username) {
+        update("user", "Processing_value", $username, "id", $from_id);
+    }
     $location = $nameloc['Service_location'];
     $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :location OR Location = '/all')");
     $stmt->bindParam(':location', $location, PDO::PARAM_STR);
@@ -922,14 +931,30 @@ telegram('sendMessage', [
 //     Editmessagetext($from_id, $message_id, $textbotlang['users']['extend']['selectservice'], $json_list_product_lists);
 } elseif (preg_match('/serviceextendselect_(\w+)/', $datain, $dataget)) {
     $codeproduct = $dataget[1];
-    $nameloc = select("invoice", "*", "username", $user['Processing_value'], "select");
+    $procVal     = json_decode($user['Processing_value'] ?? '', true);
+    $svcUsername = is_array($procVal) ? ($procVal['username'] ?? $user['Processing_value']) : $user['Processing_value'];
+    $nameloc = select("invoice", "*", "username", $svcUsername, "select");
     $stmt = $pdo->prepare("SELECT * FROM product WHERE (Location = :Location OR location = '/all') AND code_product = :code_product LIMIT 1");
     $stmt->bindValue(':Location', $nameloc['Service_location']);
     $stmt->bindValue(':code_product', $codeproduct);
     $stmt->execute();
     $product = $stmt->fetch(PDO::FETCH_ASSOC);
-    update("invoice", "name_product", $product['name_product'], "username", $user['Processing_value']);
+    update("invoice", "name_product", $product['name_product'], "username", $svcUsername);
     update("user", "Processing_value_one", $codeproduct, "id", $from_id);
+
+    // هشدار جایگزینی: از داده‌ی ذخیره‌شده در product_ خوانده می‌شود (بدون ریکوست مجدد به پنل)
+    $replaceWarning = '';
+    $marzban_list_ext = select("marzban_panel", "*", "name_panel", $nameloc['Service_location'], "select");
+    if (($marzban_list_ext['renew_mode'] ?? '') === 'replaceVolume' && is_array($procVal)) {
+        $extRemainSec = max(0, (int)($procVal['expire'] ?? 0) - time());
+        $extRemainGB  = max(0, ((float)($procVal['data_limit'] ?? 0) - (float)($procVal['used_traffic'] ?? 0)) / (1024 ** 3));
+        if ($extRemainSec > 86400 && $extRemainGB > 1) {
+            $extDays  = round($extRemainSec / 86400, 1);
+            $extGBFmt = round($extRemainGB, 2);
+            $replaceWarning = "\n\n⚠️ <b>هشدار:</b> حجم باقی‌مانده (<b>{$extGBFmt} گیگ</b> و <b>{$extDays} روز</b>) پس از تمدید حذف می‌شود و قابل انتقال به ماه آینده نیست.\n💡 پیشنهاد می‌شود در آخرین روز سرویس اقدام به تمدید کنید.";
+        }
+    }
+
     $keyboardextend = json_encode([
         'inline_keyboard' => [
             [
@@ -942,13 +967,13 @@ telegram('sendMessage', [
         ]
     ]);
     $textextend = "🧾 فاکتور تمدید شما برای نام کاربری {$nameloc['username']} ایجاد شد.
-            
+
 🛍 نام محصول :  {$product['name_product']}
 مبلغ تمدید :  {$product['price_product']}
 مدت زمان تمدید : {$product['Service_time']} روز
-حجم تمدید : {$product['Volume_constraint']} گیگ
-            
-            
+حجم تمدید : {$product['Volume_constraint']} گیگ{$replaceWarning}
+
+
 ✅ برای تایید و تمدید سرویس روی دکمه زیر کلیک کنید
 ❌ برای تمدید باید کیف پول خود را شارژ کنید.";
     Editmessagetext($from_id, $message_id, $textextend, $keyboardextend);
@@ -958,7 +983,8 @@ telegram('sendMessage', [
 	        return;
 	    }
 	    Editmessagetext($from_id, $message_id, "⏳ در حال انجام فرایند تمدید هستیم، لطفاً چند لحظه صبر کنید...", null);
-	    $serviceUsername = $user['Processing_value'];
+	    $procValConfirm  = json_decode($user['Processing_value'] ?? '', true);
+	    $serviceUsername = is_array($procValConfirm) ? ($procValConfirm['username'] ?? $user['Processing_value']) : $user['Processing_value'];
 	    $nameloc = select("invoice", "*", "username", $serviceUsername, "select");
 	    if (!$nameloc || (string)($nameloc['id_user'] ?? '') !== (string)$from_id) {
 	        update("user", "Processing_value_one", "none", "id", $from_id);
@@ -3091,6 +3117,30 @@ if ($text == "📨 ارسال پیام") {
     unlink('cron/info');
     deletemessage($from_id, $message_id);
     sendmessage($from_id, "📌 ارسال پیام لغو گردید.", null, 'HTML');
+} elseif ($text == "📌 ارسال همگانی با پین") {
+    sendmessage($from_id, $textbotlang['Admin']['ManageUser']['GetText'], $backadmin, 'HTML');
+    step('getconfirmsendallpin', $from_id);
+} elseif ($user['step'] == "getconfirmsendallpin") {
+    savedata("clear", "text", $text);
+    savedata("save", "id_admin", $from_id);
+    savedata("save", "pin", true);
+    sendmessage($from_id, "در صورت تایید متن زیر را ارسال نمایید
+    تایید", $backadmin, 'HTML');
+    step("gettextforsendallpin", $from_id);
+} elseif ($user['step'] == "gettextforsendallpin") {
+    $userdata = json_decode($user['Processing_value'], true);
+    if ($text == "تایید") {
+        step('home', $from_id);
+        $result = select("user", "id", "User_Status", "Active", "fetchAll");
+        $Respuseronse = json_encode([
+            'inline_keyboard' => [
+                [['text' => "لغو ارسال", 'callback_data' => 'cancel_sendmessage']],
+            ]
+        ]);
+        file_put_contents('cron/users.json', json_encode($result));
+        file_put_contents('cron/info', $user['Processing_value']);
+        sendmessage($from_id, "📌 پیام شما در صف ارسال قرار گرفت و برای هر کاربر پین خواهد شد.", $Respuseronse, 'HTML');
+    }
 } elseif ($text == "📤 فوروارد همگانی") {
     sendmessage($from_id, $textbotlang['Admin']['ManageUser']['ForwardGetext'], $backadmin, 'HTML');
     step('gettextforwardMessage', $from_id);
