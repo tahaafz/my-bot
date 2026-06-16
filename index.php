@@ -2316,7 +2316,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
             "PaymentID" => $randomStringasli,
             "WalletAddress" => $tronado_wallet,
             "TronAmount" => $roundedValue,
-            "CallbackUrl" => "https://iranai.top/bot/payment/tornado.php"
+            "CallbackUrl" => "https://iranify.xyz/bot/payment/tornado.php"
         ];
 
         $jsonData = json_encode($data);
