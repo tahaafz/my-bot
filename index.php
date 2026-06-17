@@ -1125,6 +1125,18 @@ telegram('sendMessage', [
     ]);
     sendmessage($from_id, $textbotlang['users']['extend']['thanks'], $keyboardextendfnished, 'HTML');
 
+    $pdo->prepare("
+        UPDATE invoice
+        SET `3_gig_notified_at` = NULL,
+            `1_gig_notified_at` = NULL,
+            `5_gig_notified_at` = NULL,
+            notif_3day_at       = NULL,
+            notif_1day_at       = NULL,
+            notif_limited_at    = NULL,
+            notif_expired_at    = NULL
+        WHERE id_invoice = ?
+    ")->execute([$nameloc['id_invoice']]);
+
     $priceproductformat  = number_format($product['price_product']);
     $balanceformatsell   = number_format(select("user", "Balance", "id", $from_id, "select")['Balance']);
 

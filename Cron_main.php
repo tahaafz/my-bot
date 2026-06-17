@@ -253,32 +253,14 @@ foreach ($byPanel as $panelName => $invoices) {
             // ══════════════════════════════════════════════════════
             if ($status === 'active' && $data_limit > 0) {
 
-                // ── ریست فلگ‌ها هنگام شارژ / تمدید حجم ──────────
-                // وقتی حجم باقی‌مانده از آستانه بالا رفت،
-                // فلگ‌های مربوطه ریست می‌شوند تا دفعه بعد الرت صادر شود
+                // ── ریست وضعیت هنگام شارژ مجدد ──────────────────
+                // فلگ‌های حجم (3_gig, 1_gig, 5_gig) هرگز توسط کرون ریست
+                // نمی‌شوند؛ هر اعلان فقط یک‌بار ارسال می‌گردد.
                 if ($remaining >= BYTES_3G) {
                     $pdo->prepare("
                         UPDATE invoice
-                        SET `3_gig_notified_at` = NULL,
-                            `1_gig_notified_at` = NULL,
-                            `5_gig_notified_at` = NULL,
-                            notif_limited_at    = NULL,
-                            Status              = 'active'
-                        WHERE id_invoice = ?
-                    ")->execute([$inv]);
-
-                } elseif ($remaining >= BYTES_1G) {
-                    $pdo->prepare("
-                        UPDATE invoice
-                        SET `1_gig_notified_at` = NULL,
-                            `5_gig_notified_at` = NULL
-                        WHERE id_invoice = ?
-                    ")->execute([$inv]);
-
-                } elseif ($remaining >= BYTES_500M) {
-                    $pdo->prepare("
-                        UPDATE invoice
-                        SET `5_gig_notified_at` = NULL
+                        SET notif_limited_at = NULL,
+                            Status           = 'active'
                         WHERE id_invoice = ?
                     ")->execute([$inv]);
                 }
