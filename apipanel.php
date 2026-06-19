@@ -119,6 +119,12 @@ if(isset($nameprotocol['vless']) && $marzban_list_get['flow'] == "flowon"){
     }else {
         $data['expire'] = $expire;
     }
+    if (!empty($marzban_list_get['node_coefficients'])) {
+        $nc = json_decode($marzban_list_get['node_coefficients'], true);
+        if (is_array($nc)) {
+            $data['node_coefficients'] = $nc;
+        }
+    }
     $payload = json_encode($data);
 
     $ch = curl_init();
@@ -196,6 +202,12 @@ function Modifyuser($location,$username,array $data)
         $panel_apikey = $Check_token['access_token'];
     }
     $url =  $marzban_list_get['url_panel'].'/api/user/'.$username;
+    if (!empty($marzban_list_get['node_coefficients']) && !isset($data['node_coefficients'])) {
+        $nc = json_decode($marzban_list_get['node_coefficients'], true);
+        if (is_array($nc)) {
+            $data['node_coefficients'] = $nc;
+        }
+    }
     $payload = json_encode($data);
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
