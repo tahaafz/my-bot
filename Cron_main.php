@@ -230,22 +230,25 @@ foreach ($byPanel as $panelName => $invoices) {
             $remainSecs = $expire > 0 ? ($expire - time()) : PHP_INT_MAX;
             $remainDays = $expire > 0 ? (int)ceil($remainSecs / 86400) : PHP_INT_MAX;
             $liveVolGb  = (int)floor($remaining / BYTES_1G);
+            $now        = date('Y-m-d H:i:s');
 
             // ── به‌روزرسانی live_volume و live_duration ──────────
             $pdo->prepare("
                 UPDATE invoice
                 SET live_volume              = ?,
-                    live_volume_updated_at   = NOW(),
+                    live_volume_updated_at   = ?,
                     live_duration            = ?,
-                    live_duration_updated_at = NOW()
+                    live_duration_updated_at = ?,
+                    live_check_last_at       = ?
                 WHERE id_invoice = ?
             ")->execute([
                 $liveVolGb,
+                $now,
                 $expire > 0 ? max(0, $remainDays) : 0,
+                $now,
+                $now,
                 $inv,
             ]);
-
-            $now = date('Y-m-d H:i:s');
 
             // ══════════════════════════════════════════════════════
             //  الرت‌های حجم
