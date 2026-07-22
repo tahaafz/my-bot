@@ -325,6 +325,7 @@ function revertAutoApprovedCartPayment(string $orderId): array
     $currentBalance = (int)$targetUser['Balance'];
     if ($currentBalance >= $price) {
         update("user", "Balance", $currentBalance - $price, "id", $paymentReport['id_user']);
+        update("user", "disable_auto_receipt_approval", 1, "id", $paymentReport['id_user']);
         update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
         return [
             'ok' => true,
@@ -348,6 +349,7 @@ function revertAutoApprovedCartPayment(string $orderId): array
     }
 
     update("invoice", "deleted_at", date('Y-m-d H:i:s'), "id_invoice", $invoice['id_invoice']);
+    update("user", "disable_auto_receipt_approval", 1, "id", $paymentReport['id_user']);
     update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
 
     return [
