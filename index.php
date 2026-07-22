@@ -129,6 +129,236 @@ function walletChargeMinimum($user): int
     return 150000;
 }
 
+function paymentTimeToTimestamp($value): int
+{
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 0;
+    }
+    if (ctype_digit($value)) {
+        return (int) $value;
+    }
+    $formats = ['Y/m/d H:i:s', 'Y/m/d h:i:s', 'Y-m-d H:i:s'];
+    foreach ($formats as $format) {
+        $dt = DateTime::createFromFormat($format, $value);
+        if ($dt instanceof DateTime) {
+            return $dt->getTimestamp();
+        }
+    }
+    $ts = strtotime(str_replace('/', '-', $value));
+    return $ts !== false ? $ts : 0;
+}
+
+function cartAutoApproveEnabled(): bool
+{
+    $setting = select("PaySetting", "ValuePay", "NamePay", "cart_auto_approve", "select");
+    return ($setting['ValuePay'] ?? 'off') === 'on';
+}
+
+function cartAutoApproveKeyboard(): string
+{
+    $isOn = cartAutoApproveEnabled();
+    return json_encode([
+        'inline_keyboard' => [
+            [
+                [
+                    'text' => $isOn ? '✅ روشن (کلیک برای خاموش)' : '❌ خاموش (کلیک برای روشن)',
+                    'callback_data' => $isOn ? 'cart_auto_approve_off' : 'cart_auto_approve_on'
+                ],
+            ],
+        ]
+    ]);
+}
+
+function autoApprovedReceiptKeyboard(string $orderId): string
+{
+    return json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '✅ خودکار تایید شد', 'callback_data' => 'auto_approved_info'],
+            ],
+            [
+                ['text' => '↩️ بازگشت', 'callback_data' => "revert_auto_pay_{$orderId}"],
+            ],
+        ]
+    ]);
+}
+
+function userAutoApproveLabel(array $targetUser): string
+{
+    return ((int)($targetUser['disable_auto_receipt_approval'] ?? 0) === 1)
+        ? '❌ لغو شده'
+        : '✅ فعال';
+}
+
+function userRecentReceiptOverrideLabel(array $targetUser): string
+{
+    return ((int)($targetUser['allow_auto_receipt_with_recent'] ?? 0) === 1)
+        ? '✅ نادیده بگیر'
+        : '❌ بررسی شود';
+}
+
+function userInfoKeyboard(array $targetUser, array $textbotlang): string
+{
+    $roll_Status = [
+        '1' => $textbotlang['Admin']['ManageUser']['Acceptedphone'],
+        '0' => $textbotlang['Admin']['ManageUser']['Failedphone'],
+    ][(string)($targetUser['roll_Status'] ?? '0')] ?? $textbotlang['Admin']['ManageUser']['Failedphone'];
+    $toggleText = ((int)($targetUser['disable_auto_receipt_approval'] ?? 0) === 1)
+        ? '✅ فعال‌سازی تایید خودکار'
+        : '❌ لغو تایید خودکار';
+    $recentToggleText = ((int)($targetUser['allow_auto_receipt_with_recent'] ?? 0) === 1)
+        ? '❌ اعمال دوباره شرط ۲۴ ساعت'
+        : '✅ قبول با وجود رسید امروز';
+
+    return json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => $targetUser['id'], 'callback_data' => "id_user"],
+                ['text' => $textbotlang['Admin']['ManageUser']['Userid'], 'callback_data' => "id_user"],
+            ],
+            [
+                ['text' => $targetUser['limit_usertest'], 'callback_data' => "limit_usertest"],
+                ['text' => $textbotlang['Admin']['ManageUser']['LimitUsertest'], 'callback_data' => "limit_usertest"],
+            ],
+            [
+                ['text' => $roll_Status, 'callback_data' => "roll_Status"],
+                ['text' => $textbotlang['Admin']['ManageUser']['rollUser'], 'callback_data' => "roll_Status"],
+            ],
+            [
+                ['text' => $targetUser['number'], 'callback_data' => "number"],
+                ['text' => $textbotlang['Admin']['ManageUser']['PhoneUser'], 'callback_data' => "number"],
+            ],
+            [
+                ['text' => $targetUser['Balance'], 'callback_data' => "Balance"],
+                ['text' => $textbotlang['Admin']['ManageUser']['BalanceUser'], 'callback_data' => "Balance"],
+            ],
+            [
+                ['text' => userAutoApproveLabel($targetUser), 'callback_data' => "auto_receipt_status"],
+                ['text' => 'تایید خودکار رسید', 'callback_data' => "auto_receipt_status"],
+            ],
+            [
+                ['text' => $toggleText, 'callback_data' => "toggle_auto_receipt_user_{$targetUser['id']}"],
+            ],
+            [
+                ['text' => userRecentReceiptOverrideLabel($targetUser), 'callback_data' => "auto_receipt_recent_status"],
+                ['text' => 'شرط ۲۴ ساعت', 'callback_data' => "auto_receipt_recent_status"],
+            ],
+            [
+                ['text' => $recentToggleText, 'callback_data' => "toggle_auto_receipt_recent_user_{$targetUser['id']}"],
+            ],
+        ]
+    ]);
+}
+
+function userHasRecentCartReceipt(string $userId, string $excludeOrderId = ''): bool
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT id_order, time FROM Payment_report WHERE id_user = ? AND Payment_Method = 'cart to cart'");
+    $stmt->execute([$userId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $threshold = time() - 86400;
+    foreach ($rows as $row) {
+        if ($excludeOrderId !== '' && (string)$row['id_order'] === $excludeOrderId) {
+            continue;
+        }
+        $ts = paymentTimeToTimestamp($row['time'] ?? '');
+        if ($ts >= $threshold) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function latestInvoiceForUser(string $userId)
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM invoice WHERE id_user = ? AND (deleted_at IS NULL OR deleted_at = '') ORDER BY CAST(time_sell AS UNSIGNED) DESC, id_invoice DESC LIMIT 1");
+    $stmt->execute([$userId]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+function approveCartPaymentByOrder(string $orderId, bool $autoApproved = false): array
+{
+    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
+    if (!$paymentReport) {
+        return ['ok' => false, 'reason' => 'not_found'];
+    }
+    if (($paymentReport['payment_Status'] ?? '') === 'paid') {
+        return ['ok' => false, 'reason' => 'already_paid', 'payment' => $paymentReport];
+    }
+    if (($paymentReport['payment_Status'] ?? '') === 'reject') {
+        return ['ok' => false, 'reason' => 'already_rejected', 'payment' => $paymentReport];
+    }
+
+    $balanceRow = select("user", "*", "id", $paymentReport['id_user'], "select");
+    if (!$balanceRow) {
+        return ['ok' => false, 'reason' => 'user_not_found', 'payment' => $paymentReport];
+    }
+
+    $newBalance = (int)$balanceRow['Balance'] + (int)$paymentReport['price'];
+    update("user", "Balance", $newBalance, "id", $paymentReport['id_user']);
+    update("Payment_report", "payment_Status", $autoApproved ? "auto_paid" : "paid", "id_order", $orderId);
+
+    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
+    return ['ok' => true, 'payment' => $paymentReport, 'user' => $balanceRow, 'new_balance' => $newBalance];
+}
+
+function revertAutoApprovedCartPayment(string $orderId): array
+{
+    global $pdo, $ManagePanel;
+
+    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
+    if (!$paymentReport) {
+        return ['ok' => false, 'reason' => 'not_found'];
+    }
+    if (($paymentReport['payment_Status'] ?? '') !== 'auto_paid') {
+        return ['ok' => false, 'reason' => 'not_auto_approved', 'payment' => $paymentReport];
+    }
+
+    $targetUser = select("user", "*", "id", $paymentReport['id_user'], "select");
+    if (!$targetUser) {
+        return ['ok' => false, 'reason' => 'user_not_found', 'payment' => $paymentReport];
+    }
+
+    $price = (int)$paymentReport['price'];
+    $currentBalance = (int)$targetUser['Balance'];
+    if ($currentBalance >= $price) {
+        update("user", "Balance", $currentBalance - $price, "id", $paymentReport['id_user']);
+        update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
+        return [
+            'ok' => true,
+            'mode' => 'balance',
+            'payment' => $paymentReport,
+            'user' => $targetUser,
+        ];
+    }
+
+    $invoice = latestInvoiceForUser((string)$paymentReport['id_user']);
+    if (!$invoice) {
+        return ['ok' => false, 'reason' => 'invoice_not_found', 'payment' => $paymentReport, 'user' => $targetUser];
+    }
+
+    $panel = select("marzban_panel", "*", "name_panel", $invoice['Service_location'], "select");
+    if ($panel) {
+        $panelData = $ManagePanel->DataUser($invoice['Service_location'], $invoice['username']);
+        if (is_array($panelData) && isset($panelData['status'])) {
+            $ManagePanel->RemoveUser($invoice['Service_location'], $invoice['username']);
+        }
+    }
+
+    update("invoice", "deleted_at", date('Y-m-d H:i:s'), "id_invoice", $invoice['id_invoice']);
+    update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
+
+    return [
+        'ok' => true,
+        'mode' => 'invoice_deleted',
+        'payment' => $paymentReport,
+        'user' => $targetUser,
+        'invoice' => $invoice,
+    ];
+}
+
 set_error_handler("customErrorHandler");
 #---------channel--------------#
 $tch = '';
@@ -1133,9 +1363,21 @@ telegram('sendMessage', [
             notif_3day_at       = NULL,
             notif_1day_at       = NULL,
             notif_limited_at    = NULL,
-            notif_expired_at    = NULL
+            notif_expired_at    = NULL,
+            time_sell           = ?,
+            name_product        = ?,
+            price_product       = ?,
+            Volume              = ?,
+            Service_time        = ?
         WHERE id_invoice = ?
-    ")->execute([$nameloc['id_invoice']]);
+    ")->execute([
+        time(),
+        $product['name_product'],
+        $product['price_product'],
+        $product['Volume_constraint'],
+        $product['Service_time'],
+        $nameloc['id_invoice']
+    ]);
 
     $priceproductformat  = number_format($product['price_product']);
     $balanceformatsell   = number_format(select("user", "Balance", "id", $from_id, "select")['Balance']);
@@ -2675,7 +2917,7 @@ if (!empty($setting['Channel_Report'])) {
         sendmessage($from_id, $textbotlang['users']['Balance']['Invalid-receipt'], null, 'HTML');
         return;
     }
-    $dateacc = date('Y/m/d h:i:s');
+    $dateacc = date('Y/m/d H:i:s');
     $randomString = bin2hex(random_bytes(5));
     $payment_Status = "Unpaid";
     $Payment_Method = "cart to cart";
@@ -2698,6 +2940,12 @@ if (!empty($setting['Channel_Report'])) {
     ]);
     $Processing_value = number_format($user['Processing_value']);
     $UserKie = $user['trusteduser'];
+    $priceValue = (int)$user['Processing_value'];
+    $ignoreRecentReceiptRule = (int)($user['allow_auto_receipt_with_recent'] ?? 0) === 1;
+    $autoApproveEligible = cartAutoApproveEnabled()
+        && $priceValue < 1000000
+        && (int)($user['disable_auto_receipt_approval'] ?? 0) !== 1
+        && ($ignoreRecentReceiptRule || !userHasRecentCartReceipt((string)$from_id, $randomString));
     $textsendrasid = "
                 ⭕️ یک پرداخت جدید انجام شده است .
             
@@ -2709,15 +2957,41 @@ if (!empty($setting['Channel_Report'])) {
 
 توضیحات: $caption
 ✍️ در صورت درست بودن رسید پرداخت را تایید نمایید.";
-    // foreach ($admin_ids as $id_admin) {
-        telegram('sendphoto', [
-            'chat_id' => $receipt_admin_id,
-            'photo' => $photoid,
-            'reply_markup' => $Confirm_pay,
-            'caption' => $textsendrasid,
-            'parse_mode' => "HTML",
-        ]);
-    // }
+    if ($autoApproveEligible) {
+        $approvalResult = approveCartPaymentByOrder($randomString, true);
+        if ($approvalResult['ok']) {
+            $adminCaption = "
+✅ این رسید به‌صورت خودکار تایید شد.
+
+👤 شناسه کاربر: $from_id
+🛒 کد پیگیری پرداخت: $randomString
+⚜️ نام کاربری: @$username
+💸 مبلغ پرداختی: $Processing_value تومان
+🚨 شناسه مدیریتی: $UserKie
+
+توضیحات: $caption";
+            $adminMessage = telegram('sendphoto', [
+                'chat_id' => $receipt_admin_id,
+                'photo' => $photoid,
+                'reply_markup' => autoApprovedReceiptKeyboard($randomString),
+                'caption' => $adminCaption,
+                'parse_mode' => "HTML",
+            ]);
+            sendmessage($from_id, "💎 کاربر گرامی مبلغ {$Processing_value} تومان به کیف پول شما واریز گردید و رسید شما به‌صورت خودکار تایید شد.\n\n🛒 کد پیگیری شما: {$randomString}\n\n🚨 اکنون لازم است بار دیگر از طریق منوی خرید سرویس اشتراک خود را انتخاب کنید", mainMenuKeyboard($from_id), 'HTML');
+            if (!empty($setting['Channel_Report'])) {
+                sendmessage($setting['Channel_Report'], "🤖 یک رسید کارت به کارت به‌صورت خودکار تایید شد.\n\n👤 کاربر: <code>$from_id</code>\n🛒 کد پیگیری: <code>$randomString</code>\n💰 مبلغ: {$Processing_value} تومان", null, 'HTML');
+            }
+            step('home', $from_id);
+            return;
+        }
+    }
+    telegram('sendphoto', [
+        'chat_id' => $receipt_admin_id,
+        'photo' => $photoid,
+        'reply_markup' => $Confirm_pay,
+        'caption' => $textsendrasid,
+        'parse_mode' => "HTML",
+    ]);
     step('home', $from_id);
 //     $order_id = $randomString;
 //     $Payment_report = select("Payment_report", "*", "id_order", $order_id, "select");
@@ -3788,8 +4062,7 @@ if ($text == "🔑 تنظیمات اکانت تست") {
 if (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget)) {
     $order_id = $dataget[1];
     $Payment_report = select("Payment_report", "*", "id_order", $order_id, "select");
-    $Balance_id = select("user", "*", "id", $Payment_report['id_user'], "select");
-    if ($Payment_report['payment_Status'] == "paid" || $Payment_report['payment_Status'] == "reject") {
+    if (($Payment_report['payment_Status'] ?? '') == "paid" || ($Payment_report['payment_Status'] ?? '') == "reject") {
         telegram('answerCallbackQuery', array(
             'callback_query_id' => $callback_query_id,
             'text' => $textbotlang['Admin']['Payment']['reviewedpayment'],
@@ -3799,9 +4072,17 @@ if (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget)) {
         );
         return;
     }
-    $Balance_confrim = intval($Balance_id['Balance']) + intval($Payment_report['price']);
-    update("user", "Balance", $Balance_confrim, "id", $Payment_report['id_user']);
-    update("Payment_report", "payment_Status", "paid", "id_order", $Payment_report['id_order']);
+    $approvalResult = approveCartPaymentByOrder($order_id, false);
+    if (!$approvalResult['ok']) {
+        telegram('answerCallbackQuery', array(
+            'callback_query_id' => $callback_query_id,
+            'text' => 'خطا در تایید پرداخت',
+            'show_alert' => true,
+            'cache_time' => 5,
+        ));
+        return;
+    }
+    $Payment_report = $approvalResult['payment'];
     $Payment_report['price'] = number_format($Payment_report['price']);
     $textconfrom = "
                 💵 پرداخت با موفقیت تایید گردید.
@@ -3823,6 +4104,50 @@ if (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget)) {
 if (!empty($setting['Channel_Report'])) {
         sendmessage($setting['Channel_Report'], $text_report, null, 'HTML');
     }
+}
+if (preg_match('/revert_auto_pay_(\w+)/', $datain, $dataget)) {
+    $order_id = $dataget[1];
+    $revertResult = revertAutoApprovedCartPayment($order_id);
+    if (!$revertResult['ok']) {
+        $reasonText = 'امکان بازگشت این رسید وجود ندارد.';
+        if (($revertResult['reason'] ?? '') === 'already_reverted') {
+            $reasonText = 'این رسید قبلاً بازگشت داده شده است.';
+        } elseif (($revertResult['reason'] ?? '') === 'invoice_not_found') {
+            $reasonText = 'برای این کاربر سفارشی جهت حذف پیدا نشد.';
+        }
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => $reasonText,
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+        return;
+    }
+
+    $payment = $revertResult['payment'];
+    $priceFormatted = number_format((int)$payment['price']);
+    if ($revertResult['mode'] === 'balance') {
+        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n💰 مبلغ {$priceFormatted} تومان از موجودی کاربر کسر شد.";
+        Editmessagetext($from_id, $message_id, $textReverted, null);
+        sendmessage($payment['id_user'], "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد و مبلغ {$priceFormatted} تومان از موجودی کیف پول شما کسر شد.", mainMenuKeyboard($payment['id_user']), 'HTML');
+        if (!empty($setting['Channel_Report'])) {
+            sendmessage($setting['Channel_Report'], "↩️ یک تایید خودکار رسید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n💰 مبلغ کسر شده: {$priceFormatted} تومان", null, 'HTML');
+        }
+    } else {
+        $invoice = $revertResult['invoice'];
+        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n🗑 آخرین خرید کاربر با نام کاربری <code>{$invoice['username']}</code> به دلیل مصرف موجودی حذف شد.";
+        Editmessagetext($from_id, $message_id, $textReverted, null);
+        sendmessage($payment['id_user'], "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد.\n\nبه دلیل اینکه موجودی کیف پول استفاده شده بود، آخرین خرید شما با نام کاربری <code>{$invoice['username']}</code> حذف شد.", mainMenuKeyboard($payment['id_user']), 'HTML');
+        if (!empty($setting['Channel_Report'])) {
+            sendmessage($setting['Channel_Report'], "↩️ یک تایید خودکار رسید با حذف آخرین خرید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n👤 نام کاربری حذف‌شده: <code>{$invoice['username']}</code>", null, 'HTML');
+        }
+    }
+    telegram('answerCallbackQuery', [
+        'callback_query_id' => $callback_query_id,
+        'text' => 'بازگشت با موفقیت انجام شد.',
+        'show_alert' => false,
+        'cache_time' => 5,
+    ]);
 }
 #-------------------------#
 if (preg_match('/reject_pay_(\w+)/', $datain, $datagetr)) {
@@ -4147,37 +4472,54 @@ if ($text == "👁‍🗨 مشاهده اطلاعات کاربر") {
         return;
     }
     $user = select("user", "*", "id", $text, "select");
-    $roll_Status = [
-        '1' => $textbotlang['Admin']['ManageUser']['Acceptedphone'],
-        '0' => $textbotlang['Admin']['ManageUser']['Failedphone'],
-    ][$user['roll_Status']];
-    $userinfo = json_encode([
-        'inline_keyboard' => [
-            [
-                ['text' => $text, 'callback_data' => "id_user"],
-                ['text' => $textbotlang['Admin']['ManageUser']['Userid'], 'callback_data' => "id_user"],
-            ],
-            [
-                ['text' => $user['limit_usertest'], 'callback_data' => "limit_usertest"],
-                ['text' => $textbotlang['Admin']['ManageUser']['LimitUsertest'], 'callback_data' => "limit_usertest"],
-            ],
-            [
-                ['text' => $roll_Status, 'callback_data' => "roll_Status"],
-                ['text' => $textbotlang['Admin']['ManageUser']['rollUser'], 'callback_data' => "roll_Status"],
-            ],
-            [
-                ['text' => $user['number'], 'callback_data' => "number"],
-                ['text' => $textbotlang['Admin']['ManageUser']['PhoneUser'], 'callback_data' => "number"],
-            ],
-            [
-                ['text' => $user['Balance'], 'callback_data' => "Balance"],
-                ['text' => $textbotlang['Admin']['ManageUser']['BalanceUser'], 'callback_data' => "Balance"],
-            ],
-        ]
-    ]);
+    $userinfo = userInfoKeyboard($user, $textbotlang);
     sendmessage($from_id, $textbotlang['Admin']['ManageUser']['ViewInfo'], $userinfo, 'HTML');
     sendmessage($from_id, $textbotlang['users']['selectoption'], $User_Services, 'HTML');
     step('home', $from_id);
+}
+if (preg_match('/^toggle_auto_receipt_user_(\d+)$/', $datain, $matches)) {
+    $targetUser = select("user", "*", "id", $matches[1], "select");
+    if (!$targetUser) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'کاربر یافت نشد.',
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+    } else {
+        $newValue = ((int)($targetUser['disable_auto_receipt_approval'] ?? 0) === 1) ? 0 : 1;
+        update("user", "disable_auto_receipt_approval", $newValue, "id", $matches[1]);
+        $targetUser = select("user", "*", "id", $matches[1], "select");
+        Editmessagetext($from_id, $message_id, $textbotlang['Admin']['ManageUser']['ViewInfo'], userInfoKeyboard($targetUser, $textbotlang));
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => $newValue === 1 ? 'تایید خودکار برای این کاربر لغو شد.' : 'تایید خودکار برای این کاربر دوباره فعال شد.',
+            'show_alert' => false,
+            'cache_time' => 5,
+        ]);
+    }
+}
+if (preg_match('/^toggle_auto_receipt_recent_user_(\d+)$/', $datain, $matches)) {
+    $targetUser = select("user", "*", "id", $matches[1], "select");
+    if (!$targetUser) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'کاربر یافت نشد.',
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+    } else {
+        $newValue = ((int)($targetUser['allow_auto_receipt_with_recent'] ?? 0) === 1) ? 0 : 1;
+        update("user", "allow_auto_receipt_with_recent", $newValue, "id", $matches[1]);
+        $targetUser = select("user", "*", "id", $matches[1], "select");
+        Editmessagetext($from_id, $message_id, $textbotlang['Admin']['ManageUser']['ViewInfo'], userInfoKeyboard($targetUser, $textbotlang));
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => $newValue === 1 ? 'شرط ۲۴ ساعت برای این کاربر نادیده گرفته می‌شود.' : 'شرط ۲۴ ساعت برای این کاربر دوباره اعمال می‌شود.',
+            'show_alert' => false,
+            'cache_time' => 5,
+        ]);
+    }
 }
 #-------------------------#
 $help_Status = json_encode([
@@ -4563,12 +4905,31 @@ if ($text == "🔌 وضعیت درگاه آفلاین") {
     ]);
     sendmessage($from_id, $textbotlang['Admin']['Status']['cardTitle'], $card_Status, 'HTML');
 }
+if ($text == "🤖 تایید خودکار رسید") {
+    $autoApproveText = "🤖 تایید خودکار رسید کارت به کارت\n\nاگر روشن باشد، رسیدهای واجد شرایط به‌صورت خودکار تایید می‌شوند اما همچنان برای ادمین ارسال خواهند شد.";
+    sendmessage($from_id, $autoApproveText, cartAutoApproveKeyboard(), 'HTML');
+}
 if ($datain == "oncard") {
     update("PaySetting", "ValuePay", "offcard", "NamePay", "Cartstatus");
     Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Status']['cardStatusOff'], null);
 } elseif ($datain == "offcard") {
     update("PaySetting", "ValuePay", "oncard", "NamePay", "Cartstatus");
     Editmessagetext($from_id, $message_id, $textbotlang['Admin']['Status']['cardStatuson'], null);
+}
+if ($datain == "cart_auto_approve_on") {
+    update("PaySetting", "ValuePay", "on", "NamePay", "cart_auto_approve");
+    Editmessagetext($from_id, $message_id, "🤖 تایید خودکار رسید کارت به کارت\n\nوضعیت: ✅ روشن", cartAutoApproveKeyboard());
+} elseif ($datain == "cart_auto_approve_off") {
+    update("PaySetting", "ValuePay", "off", "NamePay", "cart_auto_approve");
+    Editmessagetext($from_id, $message_id, "🤖 تایید خودکار رسید کارت به کارت\n\nوضعیت: ❌ خاموش", cartAutoApproveKeyboard());
+}
+if ($datain == "auto_approved_info") {
+    telegram('answerCallbackQuery', [
+        'callback_query_id' => $callback_query_id,
+        'text' => 'این رسید قبلاً به‌صورت خودکار تایید شده است.',
+        'show_alert' => false,
+        'cache_time' => 5,
+    ]);
 }
 if ($text == "💵 تنظیمات nowpayment") {
     sendmessage($from_id, $textbotlang['users']['selectoption'], $NowPaymentsManage, 'HTML');

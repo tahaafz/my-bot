@@ -94,6 +94,7 @@ $CartManage = json_encode([
     'keyboard' => [
         [['text' => "💳 تنظیم شماره کارت"]],
         [['text' => "🔌 وضعیت درگاه آفلاین"]],
+        [['text' => "🤖 تایید خودکار رسید"]],
         [['text' => "🏠 بازگشت به منوی مدیریت"]]
     ],
     'resize_keyboard' => true

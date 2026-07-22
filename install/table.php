@@ -24,6 +24,8 @@ try {
         pagenumber int(10) NOT NULL,
         message_count varchar(100) NOT NULL,
         last_message_time varchar(100) NOT NULL,
+        disable_auto_receipt_approval TINYINT(1) NOT NULL DEFAULT 0,
+        allow_auto_receipt_with_recent TINYINT(1) NOT NULL DEFAULT 0,
         affiliatescount varchar(100) NOT NULL,
         affiliates varchar(100) NOT NULL,
         username varchar(1000) NOT NULL)
@@ -118,6 +120,16 @@ try {
             if (mysqli_num_rows($Check_filde) != 1) {
                 $connect->query("ALTER TABLE user ADD pagenumber int(10)");
                 echo "The page_number field was added ✅";
+            }
+            $Check_filde = $connect->query("SHOW COLUMNS FROM user LIKE 'disable_auto_receipt_approval'");
+            if (mysqli_num_rows($Check_filde) != 1) {
+                $connect->query("ALTER TABLE user ADD disable_auto_receipt_approval TINYINT(1) NOT NULL DEFAULT 0");
+                echo "The disable_auto_receipt_approval field was added ✅";
+            }
+            $Check_filde = $connect->query("SHOW COLUMNS FROM user LIKE 'allow_auto_receipt_with_recent'");
+            if (mysqli_num_rows($Check_filde) != 1) {
+                $connect->query("ALTER TABLE user ADD allow_auto_receipt_with_recent TINYINT(1) NOT NULL DEFAULT 0");
+                echo "The allow_auto_receipt_with_recent field was added ✅";
             }
         }
 } catch (Exception $e) {
@@ -745,6 +757,7 @@ try {
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_AccountID','0')");
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_PassPhrase','0')");
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('status_perfectmoney','offperfectmoney')");
+        $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('cart_auto_approve','off')");
     }
     else{
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('Cartstatus','oncard') ");
@@ -758,6 +771,7 @@ try {
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_AccountID','0')");
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_PassPhrase','0')");
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('status_perfectmoney','offperfectmoney')");
+        $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('cart_auto_approve','off')");
 
 
 
