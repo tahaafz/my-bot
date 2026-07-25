@@ -22,7 +22,17 @@ function backup_log(string $message, array $context = []): void
     }
 
     error_log($line . PHP_EOL, 3, ini_get('error_log'));
-    fwrite(STDERR, $line . PHP_EOL);
+
+    if (defined('STDERR')) {
+        fwrite(STDERR, $line . PHP_EOL);
+        return;
+    }
+
+    $stderr = fopen('php://stderr', 'ab');
+    if ($stderr !== false) {
+        fwrite($stderr, $line . PHP_EOL);
+        fclose($stderr);
+    }
 }
 
 function load_bot_config(): void
