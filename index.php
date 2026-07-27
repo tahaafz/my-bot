@@ -155,6 +155,86 @@ function cartAutoApproveEnabled(): bool
     return ($setting['ValuePay'] ?? 'off') === 'on';
 }
 
+function resolveTrustedCardLevel(int $trustedLevel): int
+{
+    $trustedCardMap = [98 => 1];
+    $trustedLevel = $trustedCardMap[$trustedLevel] ?? $trustedLevel;
+    $trustedCardLevels = [1, 2, 3, 11, 12, 13, 14, 15, 16];
+
+    return in_array($trustedLevel, $trustedCardLevels, true) ? $trustedLevel : 0;
+}
+
+function trustedCardSettings(int $trustedLevel): array
+{
+    global $CartDescription, $CartName;
+
+    $cardLevel = resolveTrustedCardLevel($trustedLevel);
+    $cardDescription = $CartDescription;
+    $cardName = $CartName;
+    $trustedUserId = '';
+
+    if ($cardLevel > 0) {
+        $cardDescription = $GLOBALS["CartDescription{$cardLevel}"] ?? $cardDescription;
+        $cardName = $GLOBALS["CartName{$cardLevel}"] ?? $cardName;
+        $trustedUserId = trim((string)($GLOBALS["CartTrustedUserId{$cardLevel}"] ?? ''));
+    }
+
+    return [
+        'level' => $cardLevel,
+        'description' => $cardDescription,
+        'name' => $cardName,
+        'trusted_user_id' => $trustedUserId,
+    ];
+}
+
+function trustedReceiptReportKeyboard(string $orderId): string
+{
+    return json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '🚨 رسید فیک', 'callback_data' => "fake_receipt_{$orderId}"],
+            ],
+        ],
+    ]);
+}
+
+function sendReceiptToTrustedUser(
+    string $trustedUserId,
+    string $photoId,
+    string $orderId,
+    string $depositorId,
+    string $depositorUsername,
+    string $formattedPrice,
+    int $cardLevel,
+    string $receiptCaption
+): void {
+    if ($trustedUserId === '') {
+        return;
+    }
+
+    $safeUsername = htmlspecialchars($depositorUsername, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeCaption = htmlspecialchars($receiptCaption, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $reportCaption = "💳 یک واریز جدید برای کارت تراستد شما ثبت شد.
+
+👤 شناسه واریزکننده: <code>{$depositorId}</code>
+⚜️ نام کاربری: @{$safeUsername}
+🛒 کد پیگیری: <code>{$orderId}</code>
+💸 مبلغ: {$formattedPrice} تومان
+🔢 سطح تراستد: {$cardLevel}
+
+توضیحات: {$safeCaption}
+
+اگر این رسید متعلق به واریز واقعی نیست، دکمه «رسید فیک» را بزنید.";
+
+    telegram('sendphoto', [
+        'chat_id' => $trustedUserId,
+        'photo' => $photoId,
+        'reply_markup' => trustedReceiptReportKeyboard($orderId),
+        'caption' => $reportCaption,
+        'parse_mode' => 'HTML',
+    ]);
+}
+
 function cartAutoApproveKeyboard(): string
 {
     $isOn = cartAutoApproveEnabled();
@@ -449,6 +529,63 @@ if ($datain == "confirmchannel") {
         deletemessage($from_id, $message_id);
         sendmessage($from_id, $textbotlang['users']['channel']['confirmed'], $keyboard, 'html');
     }
+    return;
+}
+if (preg_match('/^fake_receipt_([a-f0-9]{10})$/', $datain, $fakeReceiptMatch)) {
+    $orderId = $fakeReceiptMatch[1];
+    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
+
+    if (!$paymentReport || ($paymentReport['Payment_Method'] ?? '') !== 'cart to cart') {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'این رسید پیدا نشد.',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+
+    $depositor = select("user", "*", "id", $paymentReport['id_user'], "select");
+    $cardSettings = trustedCardSettings((int)($depositor['trusteduser'] ?? 0));
+    $trustedCardOwnerId = (string)$cardSettings['trusted_user_id'];
+    if ($trustedCardOwnerId === '' || (string)$from_id !== $trustedCardOwnerId) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'شما اجازه گزارش این رسید را ندارید.',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+
+    $formattedPrice = number_format((int)($paymentReport['price'] ?? 0));
+    $cardLevel = (int)$cardSettings['level'];
+    $safeReporterUsername = htmlspecialchars((string)$username, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $adminReport = "🚨 <b>گزارش رسید فیک</b>
+
+👤 گزارش‌دهنده (صاحب کارت): <code>{$from_id}</code>
+⚜️ نام کاربری گزارش‌دهنده: @{$safeReporterUsername}
+👤 شناسه واریزکننده: <code>{$paymentReport['id_user']}</code>
+🛒 کد پیگیری: <code>{$orderId}</code>
+💸 مبلغ: {$formattedPrice} تومان
+🔢 سطح تراستد: {$cardLevel}";
+
+    $reportRecipients = array_unique(array_filter(array_map('strval', array_merge(
+        $admin_ids,
+        !empty($receipt_admin_id) ? [(string)$receipt_admin_id] : []
+    ))));
+    foreach ($reportRecipients as $adminId) {
+        sendmessage($adminId, $adminReport, null, 'HTML');
+    }
+
+    telegram('editMessageReplyMarkup', [
+        'chat_id' => $from_id,
+        'message_id' => $message_id,
+        'reply_markup' => json_encode(['inline_keyboard' => []]),
+    ]);
+    telegram('answerCallbackQuery', [
+        'callback_query_id' => $callback_query_id,
+        'text' => 'گزارش رسید فیک برای مدیریت ارسال شد.',
+        'show_alert' => true,
+    ]);
     return;
 }
 if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
@@ -2455,20 +2592,9 @@ if ($text == $datatextbot['text_Add_Balance']) {
     if ($datain == "cart_to_offline") {
         $PaySetting = select("PaySetting", "ValuePay", "NamePay", "CartDescription", "select")['ValuePay'];
         $Processing_value = number_format($user['Processing_value']);
-        $cardDescription = $CartDescription;
-        $cardName = $CartName;
-        $trustedLevel = (int)$user['trusteduser'];
-        $trustedCardMap = [98 => 1];
-        if (isset($trustedCardMap[$trustedLevel])) {
-            $trustedLevel = $trustedCardMap[$trustedLevel];
-        }
-        $trustedCardLevels = [1, 2, 3, 11, 12, 13, 14, 15, 16];
-        if (in_array($trustedLevel, $trustedCardLevels, true)) {
-            $descriptionKey = "CartDescription{$trustedLevel}";
-            $nameKey = "CartName{$trustedLevel}";
-            $cardDescription = $GLOBALS[$descriptionKey] ?? $cardDescription;
-            $cardName = $GLOBALS[$nameKey] ?? $cardName;
-        }
+        $cardSettings = trustedCardSettings((int)$user['trusteduser']);
+        $cardDescription = $cardSettings['description'];
+        $cardName = $cardSettings['name'];
         $textcart = "برای افزایش موجودی به صورت دستی، مبلغ $Processing_value  تومان  را به شماره‌ی حساب زیر واریز کنید 👇🏻
     
     ==================== 
@@ -2923,6 +3049,9 @@ if (!empty($setting['Channel_Report'])) {
     $randomString = bin2hex(random_bytes(5));
     $payment_Status = "Unpaid";
     $Payment_Method = "cart to cart";
+    $cardSettings = trustedCardSettings((int)$user['trusteduser']);
+    $trustedCardLevel = (int)$cardSettings['level'];
+    $trustedCardOwnerId = (string)$cardSettings['trusted_user_id'];
     $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bindParam(1, $from_id);
     $stmt->bindParam(2, $randomString);
@@ -2959,6 +3088,16 @@ if (!empty($setting['Channel_Report'])) {
 
 توضیحات: $caption
 ✍️ در صورت درست بودن رسید پرداخت را تایید نمایید.";
+    sendReceiptToTrustedUser(
+        $trustedCardOwnerId,
+        $photoid,
+        $randomString,
+        (string)$from_id,
+        (string)$username,
+        $Processing_value,
+        $trustedCardLevel,
+        (string)$caption
+    );
     if ($autoApproveEligible) {
         $approvalResult = approveCartPaymentByOrder($randomString, true);
         if ($approvalResult['ok']) {
