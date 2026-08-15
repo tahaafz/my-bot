@@ -2545,13 +2545,7 @@ if ($datain == "confirm_wallet_charge") {
     step('getprice', $from_id);
 }
 
-if ($text == $datatextbot['text_Add_Balance']) {
-    if ($setting['get_number'] == "✅ تایید شماره موبایل روشن است" && $user['step'] != "get_number" && $user['number'] == "none") {
-        sendmessage($from_id, $textbotlang['users']['number']['Confirming'], $request_contact, 'HTML');
-        step('get_number', $from_id);
-    }
-    if ($user['number'] == "none" && $setting['get_number'] == "✅ تایید شماره موبایل روشن است")
-        return;
+if ($datain == "wallet_custom_amount") {
     $mehrab = number_format($user['Balance']);
     $confirmKeyboard = json_encode([
         'inline_keyboard' => [
@@ -2571,6 +2565,63 @@ if ($text == $datatextbot['text_Add_Balance']) {
 
 برای ادامه روی دکمه زیر کلیک کنید:";
     sendmessage($from_id, $priceinput, $confirmKeyboard, 'HTML');
+    return;
+}
+
+if (preg_match('/^wallet_amount_(\d+)$/', $datain, $walletAmountMatch)) {
+    $walletAmount = (int) $walletAmountMatch[1];
+    $minimumCharge = walletChargeMinimum($user);
+    if ($walletAmount > 3000000 || $walletAmount < $minimumCharge) {
+        $minimumChargeFormatted = number_format($minimumCharge);
+        sendmessage($from_id, "❌ مبلغ نامعتبر است.\n\nحداقل مبلغ شارژ {$minimumChargeFormatted} تومان و حداکثر 3,000,000 تومان می‌باشد.", null, 'HTML');
+        return;
+    }
+    update("user", "Processing_value", $walletAmount, "id", $from_id);
+    sendmessage($from_id, $textbotlang['users']['Balance']['selectPatment'], $step_payment, 'HTML');
+    step('get_step_payment', $from_id);
+    return;
+}
+
+if ($text == $datatextbot['text_Add_Balance']) {
+    if ($setting['get_number'] == "✅ تایید شماره موبایل روشن است" && $user['step'] != "get_number" && $user['number'] == "none") {
+        sendmessage($from_id, $textbotlang['users']['number']['Confirming'], $request_contact, 'HTML');
+        step('get_number', $from_id);
+    }
+    if ($user['number'] == "none" && $setting['get_number'] == "✅ تایید شماره موبایل روشن است")
+        return;
+    $mehrab = number_format($user['Balance']);
+    $walletAmountKeyboard = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => '150,000 تومان', 'callback_data' => 'wallet_amount_150000'],
+                ['text' => '200,000 تومان', 'callback_data' => 'wallet_amount_200000'],
+            ],
+            [
+                ['text' => '250,000 تومان', 'callback_data' => 'wallet_amount_250000'],
+                ['text' => '300,000 تومان', 'callback_data' => 'wallet_amount_300000'],
+            ],
+            [
+                ['text' => '400,000 تومان', 'callback_data' => 'wallet_amount_400000'],
+                ['text' => '500,000 تومان', 'callback_data' => 'wallet_amount_500000'],
+            ],
+            [
+                ['text' => '700,000 تومان', 'callback_data' => 'wallet_amount_700000'],
+            ],
+            [
+                ['text' => '1,000,000 تومان', 'callback_data' => 'wallet_amount_1000000'],
+            ],
+            [
+                ['text' => '✏️ مبلغ دلخواه', 'callback_data' => 'wallet_custom_amount'],
+            ],
+            [
+                ['text' => '🏠 بازگشت به منوی اصلی', 'callback_data' => 'backuser'],
+            ],
+        ]
+    ]);
+    $priceinput = "💵 موجودی کیف پول شما : {$mehrab} تومان
+
+💸 لطفاً مبلغ شارژ کیف پول خود را از گزینه‌های زیر انتخاب کنید یا مبلغ دلخواه خود را وارد نمایید:";
+    sendmessage($from_id, $priceinput, $walletAmountKeyboard, 'HTML');
 } elseif ($user['step'] == "getprice") {
    // $text = $datain;
     if (!is_numeric($text))
