@@ -210,7 +210,8 @@ function main(array $argv): int
         throw new RuntimeException('Database connection is not available.');
     }
 
-    $mode = $argv[1] ?? 'auto';
+    $mode = $argv[1] ?? ($_GET['mode'] ?? 'auto');
+    $mode = is_string($mode) ? $mode : 'auto';
     if (!in_array($mode, ['auto', 'remind', 'report'], true)) {
         fwrite(STDERR, "Usage: php trusted_receipt_cron.php [auto|remind|report]\n");
         return 1;
