@@ -350,12 +350,113 @@ function userHasRecentCartReceipt(string $userId, string $excludeOrderId = ''): 
     return false;
 }
 
-function latestInvoiceForUser(string $userId)
+function invoiceTimeToTimestamp($value): int
+{
+    $value = tr_num(trim((string)$value), 'en');
+    if ($value === '') {
+        return 0;
+    }
+    if (ctype_digit($value)) {
+        $n = (int)$value;
+        return $n > 1000000000 ? $n : 0;
+    }
+    if (preg_match('#^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$#', $value, $m)) {
+        $year = (int)$m[1];
+        if ($year >= 1300 && $year <= 1600) {
+            $hasTime = isset($m[4]);
+            return (int)jmktime(
+                $hasTime ? (int)$m[4] : 23,
+                $hasTime ? (int)$m[5] : 59,
+                $hasTime ? (int)($m[6] ?? 59) : 59,
+                (int)$m[2],
+                (int)$m[3],
+                $year
+            );
+        }
+    }
+    return paymentTimeToTimestamp($value);
+}
+
+function invoiceRowStatus(array $row): string
+{
+    return strtolower((string)($row['Status'] ?? $row['status'] ?? ''));
+}
+
+function invoiceRowIsActive(array $row): bool
+{
+    $deletedAt = $row['deleted_at'] ?? null;
+    if ($deletedAt !== null && $deletedAt !== '') {
+        return false;
+    }
+    return !in_array(invoiceRowStatus($row), ['removedbyuser', 'removedbyadmin', 'delete', 'deleted'], true);
+}
+
+function invoicesForUser(string $userId): array
 {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT * FROM invoice WHERE id_user = ? AND (deleted_at IS NULL OR deleted_at = '') ORDER BY CAST(time_sell AS UNSIGNED) DESC, id_invoice DESC LIMIT 1");
+    $stmt = $pdo->prepare("SELECT * FROM invoice WHERE id_user = ?");
     $stmt->execute([$userId]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return is_array($rows) ? $rows : [];
+}
+
+function activeInvoicesForUser(string $userId): array
+{
+    $matched = [];
+    foreach (invoicesForUser($userId) as $row) {
+        if (!invoiceRowIsActive($row)) {
+            continue;
+        }
+        $row['_ts'] = invoiceTimeToTimestamp($row['time_sell'] ?? '');
+        $matched[] = $row;
+    }
+    usort($matched, static function ($a, $b) {
+        return ($b['_ts'] ?? 0) <=> ($a['_ts'] ?? 0);
+    });
+    return $matched;
+}
+
+function latestActiveInvoiceForUser(string $userId)
+{
+    $active = activeInvoicesForUser($userId);
+    return $active[0] ?? null;
+}
+
+function markInvoiceRemovedByAdmin(array $invoice): void
+{
+    $invoiceId = $invoice['id_invoice'] ?? null;
+    $username = $invoice['username'] ?? null;
+    if ($invoiceId) {
+        update("invoice", "Status", "removedbyadmin", "id_invoice", $invoiceId);
+        try {
+            update("invoice", "deleted_at", date('Y-m-d H:i:s'), "id_invoice", $invoiceId);
+        } catch (Throwable $e) {
+            error_log('markInvoiceRemovedByAdmin deleted_at: ' . $e->getMessage());
+        }
+        return;
+    }
+    if ($username) {
+        update("invoice", "Status", "removedbyadmin", "username", $username);
+    }
+}
+
+function editCallbackMessage(string $chatId, $messageId, string $text, $keyboard = null): void
+{
+    global $update;
+    $isPhoto = !empty($update['callback_query']['message']['photo']);
+    $payload = [
+        'chat_id' => $chatId,
+        'message_id' => $messageId,
+        'parse_mode' => 'HTML',
+        'reply_markup' => $keyboard ?? json_encode(['inline_keyboard' => []]),
+    ];
+    if ($isPhoto) {
+        $payload['caption'] = $text;
+        telegram('editMessageCaption', $payload);
+        return;
+    }
+    $payload['text'] = $text;
+    telegram('editMessageText', $payload);
 }
 
 function approveCartPaymentByOrder(string $orderId, bool $autoApproved = false): array
@@ -386,13 +487,15 @@ function approveCartPaymentByOrder(string $orderId, bool $autoApproved = false):
 
 function revertAutoApprovedCartPayment(string $orderId): array
 {
-    global $pdo, $ManagePanel;
+    global $ManagePanel;
 
     $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
     if (!$paymentReport) {
         return ['ok' => false, 'reason' => 'not_found'];
     }
-    if (($paymentReport['payment_Status'] ?? '') !== 'auto_paid') {
+    $status = (string)($paymentReport['payment_Status'] ?? '');
+    $alreadyReverted = $status === 'auto_reverted';
+    if (!$alreadyReverted && $status !== 'auto_paid') {
         return ['ok' => false, 'reason' => 'not_auto_approved', 'payment' => $paymentReport];
     }
 
@@ -403,9 +506,14 @@ function revertAutoApprovedCartPayment(string $orderId): array
 
     $price = (int)$paymentReport['price'];
     $currentBalance = (int)$targetUser['Balance'];
+    $userId = (string)$paymentReport['id_user'];
+
     if ($currentBalance >= $price) {
-        update("user", "Balance", $currentBalance - $price, "id", $paymentReport['id_user']);
-        update("user", "disable_auto_receipt_approval", 1, "id", $paymentReport['id_user']);
+        if ($alreadyReverted) {
+            return ['ok' => false, 'reason' => 'already_reverted', 'payment' => $paymentReport];
+        }
+        update("user", "Balance", $currentBalance - $price, "id", $userId);
+        update("user", "disable_auto_receipt_approval", 1, "id", $userId);
         update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
         return [
             'ok' => true,
@@ -415,21 +523,23 @@ function revertAutoApprovedCartPayment(string $orderId): array
         ];
     }
 
-    $invoice = latestInvoiceForUser((string)$paymentReport['id_user']);
+    $invoice = latestActiveInvoiceForUser($userId);
     if (!$invoice) {
-        return ['ok' => false, 'reason' => 'invoice_not_found', 'payment' => $paymentReport, 'user' => $targetUser];
+        return [
+            'ok' => false,
+            'reason' => $alreadyReverted ? 'already_reverted' : 'invoice_not_found',
+            'payment' => $paymentReport,
+            'user' => $targetUser,
+        ];
     }
 
-    $panel = select("marzban_panel", "*", "name_panel", $invoice['Service_location'], "select");
-    if ($panel) {
-        $panelData = $ManagePanel->DataUser($invoice['Service_location'], $invoice['username']);
-        if (is_array($panelData) && isset($panelData['status'])) {
-            $ManagePanel->RemoveUser($invoice['Service_location'], $invoice['username']);
-        }
+    $location = (string)($invoice['Service_location'] ?? '');
+    $username = (string)($invoice['username'] ?? '');
+    if ($location !== '' && $username !== '') {
+        $ManagePanel->RemoveUser($location, $username);
     }
-
-    update("invoice", "deleted_at", date('Y-m-d H:i:s'), "id_invoice", $invoice['id_invoice']);
-    update("user", "disable_auto_receipt_approval", 1, "id", $paymentReport['id_user']);
+    markInvoiceRemovedByAdmin($invoice);
+    update("user", "disable_auto_receipt_approval", 1, "id", $userId);
     update("Payment_report", "payment_Status", "auto_reverted", "id_order", $orderId);
 
     return [
@@ -438,6 +548,7 @@ function revertAutoApprovedCartPayment(string $orderId): array
         'payment' => $paymentReport,
         'user' => $targetUser,
         'invoice' => $invoice,
+        'invoices' => [ $invoice ],
     ];
 }
 
@@ -3290,6 +3401,89 @@ if ($text == "👥 زیر مجموعه گیری") {
 }
 
 #----------------[  admin section  ]------------------#
+if (preg_match('/revert_auto_pay_(\w+)/', $datain, $dataget)) {
+    $canRevert = (is_array($admin_ids) && in_array($from_id, $admin_ids))
+        || (!empty($receipt_admin_id) && (string)$from_id === (string)$receipt_admin_id);
+    if (!$canRevert) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'شما اجازه بازگشت این رسید را ندارید.',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+
+    $order_id = $dataget[1];
+    editCallbackMessage($from_id, $message_id, "⏳ در حال بازگشت تایید خودکار رسید...");
+    try {
+        $revertResult = revertAutoApprovedCartPayment($order_id);
+    } catch (Throwable $e) {
+        error_log('revert_auto_pay failed: ' . $e->getMessage());
+        editCallbackMessage($from_id, $message_id, "❌ خطا در بازگشت این رسید. لطفا دوباره تلاش کنید.");
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'خطا در بازگشت رسید',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+
+    if (!$revertResult['ok']) {
+        $reasonText = 'امکان بازگشت این رسید وجود ندارد.';
+        if (($revertResult['reason'] ?? '') === 'already_reverted') {
+            $reasonText = 'این رسید قبلاً بازگشت داده شده است.';
+        } elseif (($revertResult['reason'] ?? '') === 'invoice_not_found') {
+            $reasonText = 'برای این کاربر سفارشی جهت حذف پیدا نشد.';
+        }
+        editCallbackMessage($from_id, $message_id, "⚠️ {$reasonText}");
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => $reasonText,
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+        return;
+    }
+
+    $payment = $revertResult['payment'];
+    $priceFormatted = number_format((int)$payment['price']);
+    if ($revertResult['mode'] === 'balance') {
+        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n💰 مبلغ {$priceFormatted} تومان از موجودی کاربر کسر شد.";
+        $userNotice = "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد و مبلغ {$priceFormatted} تومان از موجودی کیف پول شما کسر شد.";
+        $reportNotice = "↩️ یک تایید خودکار رسید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n💰 مبلغ کسر شده: {$priceFormatted} تومان";
+    } else {
+        $deletedInvoices = $revertResult['invoices'] ?? [ $revertResult['invoice'] ];
+        $usernames = [];
+        foreach ($deletedInvoices as $deletedInvoice) {
+            $name = trim((string)($deletedInvoice['username'] ?? ''));
+            if ($name !== '') {
+                $usernames[] = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            }
+        }
+        $usernames = array_values(array_unique($usernames));
+        $usernameList = $usernames
+            ? implode('، ', array_map(static function ($name) {
+                return "<code>{$name}</code>";
+            }, $usernames))
+            : 'نامشخص';
+        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n🗑 خرید کاربر با نام کاربری {$usernameList} حذف شد.";
+        $userNotice = "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد.\n\nبه دلیل خرید بعد از تایید خودکار، اشتراک شما با نام کاربری {$usernameList} حذف شد.";
+        $reportNotice = "↩️ یک تایید خودکار رسید با حذف خرید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n👤 نام کاربری حذف‌شده: {$usernameList}";
+    }
+    editCallbackMessage($from_id, $message_id, $textReverted);
+    sendmessage($payment['id_user'], $userNotice, mainMenuKeyboard($payment['id_user']), 'HTML');
+    if (!empty($setting['Channel_Report'])) {
+        sendmessage($setting['Channel_Report'], $reportNotice, null, 'HTML');
+    }
+    telegram('answerCallbackQuery', [
+        'callback_query_id' => $callback_query_id,
+        'text' => 'بازگشت با موفقیت انجام شد.',
+        'show_alert' => true,
+        'cache_time' => 5,
+    ]);
+    return;
+}
+
 $textadmin = ["panel", "/panel", "پنل مدیریت", "ادمین"];
 if (!in_array($from_id, $admin_ids)) {
     if (in_array($text, $textadmin)) {
@@ -4296,50 +4490,6 @@ if (preg_match('/Confirm_pay_(\w+)/', $datain, $dataget)) {
 if (!empty($setting['Channel_Report'])) {
         sendmessage($setting['Channel_Report'], $text_report, null, 'HTML');
     }
-}
-if (preg_match('/revert_auto_pay_(\w+)/', $datain, $dataget)) {
-    $order_id = $dataget[1];
-    $revertResult = revertAutoApprovedCartPayment($order_id);
-    if (!$revertResult['ok']) {
-        $reasonText = 'امکان بازگشت این رسید وجود ندارد.';
-        if (($revertResult['reason'] ?? '') === 'already_reverted') {
-            $reasonText = 'این رسید قبلاً بازگشت داده شده است.';
-        } elseif (($revertResult['reason'] ?? '') === 'invoice_not_found') {
-            $reasonText = 'برای این کاربر سفارشی جهت حذف پیدا نشد.';
-        }
-        telegram('answerCallbackQuery', [
-            'callback_query_id' => $callback_query_id,
-            'text' => $reasonText,
-            'show_alert' => true,
-            'cache_time' => 5,
-        ]);
-        return;
-    }
-
-    $payment = $revertResult['payment'];
-    $priceFormatted = number_format((int)$payment['price']);
-    if ($revertResult['mode'] === 'balance') {
-        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n💰 مبلغ {$priceFormatted} تومان از موجودی کاربر کسر شد.";
-        Editmessagetext($from_id, $message_id, $textReverted, null);
-        sendmessage($payment['id_user'], "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد و مبلغ {$priceFormatted} تومان از موجودی کیف پول شما کسر شد.", mainMenuKeyboard($payment['id_user']), 'HTML');
-        if (!empty($setting['Channel_Report'])) {
-            sendmessage($setting['Channel_Report'], "↩️ یک تایید خودکار رسید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n💰 مبلغ کسر شده: {$priceFormatted} تومان", null, 'HTML');
-        }
-    } else {
-        $invoice = $revertResult['invoice'];
-        $textReverted = "↩️ تایید خودکار این رسید بازگردانده شد.\n\n🗑 آخرین خرید کاربر با نام کاربری <code>{$invoice['username']}</code> به دلیل مصرف موجودی حذف شد.";
-        Editmessagetext($from_id, $message_id, $textReverted, null);
-        sendmessage($payment['id_user'], "⚠️ تایید خودکار رسید شما توسط ادمین بازگردانی شد.\n\nبه دلیل اینکه موجودی کیف پول استفاده شده بود، آخرین خرید شما با نام کاربری <code>{$invoice['username']}</code> حذف شد.", mainMenuKeyboard($payment['id_user']), 'HTML');
-        if (!empty($setting['Channel_Report'])) {
-            sendmessage($setting['Channel_Report'], "↩️ یک تایید خودکار رسید با حذف آخرین خرید بازگردانی شد.\n👤 ادمین: <code>$from_id</code>\n🛒 کد پیگیری: {$payment['id_order']}\n👤 نام کاربری حذف‌شده: <code>{$invoice['username']}</code>", null, 'HTML');
-        }
-    }
-    telegram('answerCallbackQuery', [
-        'callback_query_id' => $callback_query_id,
-        'text' => 'بازگشت با موفقیت انجام شد.',
-        'show_alert' => false,
-        'cache_time' => 5,
-    ]);
 }
 #-------------------------#
 if (preg_match('/reject_pay_(\w+)/', $datain, $datagetr)) {
