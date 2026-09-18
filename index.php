@@ -192,7 +192,8 @@ function trustedReceiptReportKeyboard(string $orderId): string
     return json_encode([
         'inline_keyboard' => [
             [
-                ['text' => '🚨 رسید فیک', 'callback_data' => "fake_receipt_{$orderId}"],
+                ['text' => '✅ بررسی شد', 'callback_data' => "review_receipt_{$orderId}"],
+                ['text' => '🚨 گزارش مشکل', 'callback_data' => "report_receipt_{$orderId}"],
             ],
         ],
     ]);
@@ -224,14 +225,24 @@ function sendReceiptToTrustedUser(
 
 توضیحات: {$safeCaption}
 
-اگر این رسید متعلق به واریز واقعی نیست، دکمه «رسید فیک» را بزنید.";
+اگر رسید را بررسی کردید «بررسی شد» را بزنید. در صورت مشکل، «گزارش مشکل» را بزنید.";
 
-    telegram('sendphoto', [
+    $sent = telegram('sendphoto', [
         'chat_id' => $trustedUserId,
         'photo' => $photoId,
         'reply_markup' => trustedReceiptReportKeyboard($orderId),
         'caption' => $reportCaption,
         'parse_mode' => 'HTML',
+    ]);
+    $messageId = is_object($sent) ? (string)($sent->result->message_id ?? '') : '';
+    insertTrustedReceiptReview([
+        'id_order' => $orderId,
+        'reviewer_chat_id' => $trustedUserId,
+        'telegram_message_id' => $messageId !== '' ? $messageId : null,
+        'depositor_id' => $depositorId,
+        'price' => $formattedPrice,
+        'card_level' => $cardLevel,
+        'sent_at' => date('Y-m-d H:i:s'),
     ]);
 }
 
@@ -440,6 +451,76 @@ function markInvoiceRemovedByAdmin(array $invoice): void
     }
 }
 
+function getTrustedReceiptReviewOrFail(string $orderId, $callbackQueryId)
+{
+    global $from_id;
+    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
+    if (!$paymentReport || ($paymentReport['Payment_Method'] ?? '') !== 'cart to cart') {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callbackQueryId,
+            'text' => 'این رسید پیدا نشد.',
+            'show_alert' => true,
+        ]);
+        return null;
+    }
+
+    $depositor = select("user", "*", "id", $paymentReport['id_user'], "select");
+    $cardSettings = trustedCardSettings((int)($depositor['trusteduser'] ?? 0));
+    $trustedCardOwnerId = (string)$cardSettings['trusted_user_id'];
+    if ($trustedCardOwnerId === '' || (string)$from_id !== $trustedCardOwnerId) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callbackQueryId,
+            'text' => 'شما اجازه بررسی این رسید را ندارید.',
+            'show_alert' => true,
+        ]);
+        return null;
+    }
+
+    $review = getTrustedReceiptReview($orderId);
+    if (!$review) {
+        insertTrustedReceiptReview([
+            'id_order' => $orderId,
+            'reviewer_chat_id' => $trustedCardOwnerId,
+            'telegram_message_id' => null,
+            'depositor_id' => (string)$paymentReport['id_user'],
+            'price' => number_format((int)($paymentReport['price'] ?? 0)),
+            'card_level' => (int)$cardSettings['level'],
+            'sent_at' => date('Y-m-d H:i:s'),
+        ]);
+        $review = getTrustedReceiptReview($orderId);
+    }
+
+    return [
+        'payment' => $paymentReport,
+        'review' => $review,
+        'card_settings' => $cardSettings,
+    ];
+}
+
+function trustedReceiptStatusCaption(array $review, string $statusLine, ?string $note = null): string
+{
+    $orderId = htmlspecialchars((string)($review['id_order'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $depositorId = htmlspecialchars((string)($review['depositor_id'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $price = htmlspecialchars((string)($review['price'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $cardLevel = htmlspecialchars((string)($review['card_level'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $caption = "💳 رسید کارت تراستد
+
+👤 شناسه واریزکننده: <code>{$depositorId}</code>
+🛒 کد پیگیری: <code>{$orderId}</code>
+💸 مبلغ: {$price} تومان
+🔢 سطح تراستد: {$cardLevel}
+
+{$statusLine}";
+    if ($note !== null && $note !== '') {
+        $safeNote = htmlspecialchars($note, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $caption .= "\n\nتوضیح: {$safeNote}";
+    }
+    if (mb_strlen($caption) > 1024) {
+        $caption = mb_substr($caption, 0, 1020) . '...';
+    }
+    return $caption;
+}
+
 function editCallbackMessage(string $chatId, $messageId, string $text, $keyboard = null): void
 {
     global $update;
@@ -642,11 +723,14 @@ if ($datain == "confirmchannel") {
     }
     return;
 }
-if (preg_match('/^fake_receipt_([a-f0-9]{10})$/', $datain, $fakeReceiptMatch)) {
-    $orderId = $fakeReceiptMatch[1];
-    $paymentReport = select("Payment_report", "*", "id_order", $orderId, "select");
-
-    if (!$paymentReport || ($paymentReport['Payment_Method'] ?? '') !== 'cart to cart') {
+if (preg_match('/^review_receipt_([a-f0-9]{10})$/', $datain, $reviewReceiptMatch)) {
+    $orderId = $reviewReceiptMatch[1];
+    $loaded = getTrustedReceiptReviewOrFail($orderId, $callback_query_id);
+    if ($loaded === null) {
+        return;
+    }
+    $review = $loaded['review'];
+    if (!$review) {
         telegram('answerCallbackQuery', [
             'callback_query_id' => $callback_query_id,
             'text' => 'این رسید پیدا نشد.',
@@ -654,49 +738,63 @@ if (preg_match('/^fake_receipt_([a-f0-9]{10})$/', $datain, $fakeReceiptMatch)) {
         ]);
         return;
     }
-
-    $depositor = select("user", "*", "id", $paymentReport['id_user'], "select");
-    $cardSettings = trustedCardSettings((int)($depositor['trusteduser'] ?? 0));
-    $trustedCardOwnerId = (string)$cardSettings['trusted_user_id'];
-    if ($trustedCardOwnerId === '' || (string)$from_id !== $trustedCardOwnerId) {
+    if (in_array((string)($review['status'] ?? ''), ['reviewed', 'problem'], true)) {
         telegram('answerCallbackQuery', [
             'callback_query_id' => $callback_query_id,
-            'text' => 'شما اجازه گزارش این رسید را ندارید.',
+            'text' => 'این رسید قبلاً بررسی شده است.',
             'show_alert' => true,
         ]);
         return;
     }
-
-    $formattedPrice = number_format((int)($paymentReport['price'] ?? 0));
-    $cardLevel = (int)$cardSettings['level'];
-    $safeReporterUsername = htmlspecialchars((string)$username, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $adminReport = "🚨 <b>گزارش رسید فیک</b>
-
-👤 گزارش‌دهنده (صاحب کارت): <code>{$from_id}</code>
-⚜️ نام کاربری گزارش‌دهنده: @{$safeReporterUsername}
-👤 شناسه واریزکننده: <code>{$paymentReport['id_user']}</code>
-🛒 کد پیگیری: <code>{$orderId}</code>
-💸 مبلغ: {$formattedPrice} تومان
-🔢 سطح تراستد: {$cardLevel}";
-
-    $reportRecipients = array_unique(array_filter(array_map('strval', array_merge(
-        $admin_ids,
-        !empty($receipt_admin_id) ? [(string)$receipt_admin_id] : []
-    ))));
-    foreach ($reportRecipients as $adminId) {
-        sendmessage($adminId, $adminReport, null, 'HTML');
+    markTrustedReceiptReview($orderId, 'reviewed', (string)$from_id);
+    if (empty($review['telegram_message_id']) && $message_id) {
+        global $pdo;
+        $pdo->prepare("UPDATE trusted_receipt_review SET telegram_message_id = ? WHERE id_order = ?")->execute([(string)$message_id, $orderId]);
     }
-
-    telegram('editMessageReplyMarkup', [
-        'chat_id' => $from_id,
-        'message_id' => $message_id,
-        'reply_markup' => json_encode(['inline_keyboard' => []]),
-    ]);
+    editCallbackMessage($from_id, $message_id, trustedReceiptStatusCaption($review, '✅ این رسید بررسی شد.'));
     telegram('answerCallbackQuery', [
         'callback_query_id' => $callback_query_id,
-        'text' => 'گزارش رسید فیک برای مدیریت ارسال شد.',
-        'show_alert' => true,
+        'text' => 'رسید به‌عنوان بررسی‌شده ثبت شد.',
+        'show_alert' => false,
     ]);
+    return;
+}
+if (preg_match('/^report_receipt_([a-f0-9]{10})$/', $datain, $reportReceiptMatch)) {
+    $orderId = $reportReceiptMatch[1];
+    $loaded = getTrustedReceiptReviewOrFail($orderId, $callback_query_id);
+    if ($loaded === null) {
+        return;
+    }
+    $review = $loaded['review'];
+    if (!$review) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'این رسید پیدا نشد.',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+    if (in_array((string)($review['status'] ?? ''), ['reviewed', 'problem'], true)) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'این رسید قبلاً بررسی شده است.',
+            'show_alert' => true,
+        ]);
+        return;
+    }
+    if (empty($review['telegram_message_id']) && $message_id) {
+        global $pdo;
+        $pdo->prepare("UPDATE trusted_receipt_review SET telegram_message_id = ? WHERE id_order = ?")->execute([(string)$message_id, $orderId]);
+    }
+    update("user", "Processing_value", $orderId, "id", $from_id);
+    update("user", "Processing_value_one", (string)$message_id, "id", $from_id);
+    step('receipt_problem_note', $from_id);
+    telegram('answerCallbackQuery', [
+        'callback_query_id' => $callback_query_id,
+        'text' => 'توضیح مشکل را ارسال کنید.',
+        'show_alert' => false,
+    ]);
+    sendmessage($from_id, "✍️ توضیح مشکل این رسید را ارسال کنید.\n\n🛒 کد پیگیری: <code>{$orderId}</code>", $backuser, 'HTML');
     return;
 }
 if (preg_match('/^\/start trust(\d+)(.*)$/', $text, $trustMatch)) {
@@ -877,6 +975,55 @@ if ($text == "🏠 بازگشت به منوی اصلی" || $datain == "backuser"
     if ($datain == "backuser")
         deletemessage($from_id, $message_id);
     sendmessage($from_id, $textbotlang['users']['back'], $keyboard, 'html');
+    step('home', $from_id);
+    return;
+}
+if (($user['step'] ?? '') === 'receipt_problem_note') {
+    if ($text === '' || $text === null) {
+        sendmessage($from_id, '❌ لطفاً توضیح مشکل را به‌صورت متن ارسال کنید.', $backuser, 'HTML');
+        return;
+    }
+    $orderId = (string)($user['Processing_value'] ?? '');
+    $reviewMessageId = (string)($user['Processing_value_one'] ?? '');
+    $review = $orderId !== '' ? getTrustedReceiptReview($orderId) : null;
+    if (!$review || (string)($review['reviewer_chat_id'] ?? '') !== (string)$from_id) {
+        sendmessage($from_id, 'این رسید پیدا نشد.', $keyboard, 'HTML');
+        step('home', $from_id);
+        return;
+    }
+    if (in_array((string)($review['status'] ?? ''), ['reviewed', 'problem'], true)) {
+        sendmessage($from_id, 'این رسید قبلاً بررسی شده است.', $keyboard, 'HTML');
+        step('home', $from_id);
+        return;
+    }
+    markTrustedReceiptReview($orderId, 'problem', (string)$from_id, $text);
+    $safeReporterUsername = htmlspecialchars((string)$username, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeNote = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $adminReport = "🚨 <b>گزارش مشکل رسید</b>
+
+👤 گزارش‌دهنده (صاحب کارت): <code>{$from_id}</code>
+⚜️ نام کاربری گزارش‌دهنده: @{$safeReporterUsername}
+👤 شناسه واریزکننده: <code>{$review['depositor_id']}</code>
+🛒 کد پیگیری: <code>{$orderId}</code>
+💸 مبلغ: {$review['price']} تومان
+🔢 سطح تراستد: {$review['card_level']}
+
+✍️ توضیح:
+{$safeNote}";
+    foreach (trustedReceiptMainAdminRecipients() as $adminId) {
+        sendmessage($adminId, $adminReport, null, 'HTML');
+    }
+    $editMessageId = $reviewMessageId !== '' ? $reviewMessageId : (string)($review['telegram_message_id'] ?? '');
+    if ($editMessageId !== '') {
+        telegram('editMessageCaption', [
+            'chat_id' => $from_id,
+            'message_id' => $editMessageId,
+            'caption' => trustedReceiptStatusCaption($review, '🚨 گزارش مشکل ثبت شد.', $text),
+            'parse_mode' => 'HTML',
+            'reply_markup' => json_encode(['inline_keyboard' => []]),
+        ]);
+    }
+    sendmessage($from_id, 'گزارش مشکل برای مدیریت ارسال شد.', $keyboard, 'HTML');
     step('home', $from_id);
     return;
 }
@@ -1548,7 +1695,7 @@ telegram('sendMessage', [
 • مصرف شده : {$preUsedGB} گیگ
 • باقی‌مانده : {$preRemainGB} گیگ
 • انقضا : $preExpire";
-        sendmessage($report_admin_id,$text_pre_report, null, 'HTML');
+        sendmessage('1201211766',$text_pre_report, null, 'HTML');
 
 
     $modifyResult = array('status' => 'Unsuccessful', 'msg' => 'Panel Not Found');
@@ -1660,11 +1807,7 @@ telegram('sendMessage', [
 ✅ وضعیت بعد از تمدید :
 • حجم کل جدید : {$afterLimitGB} گیگ
 • انقضا جدید : $afterExpire";
-        sendmessage($report_admin_id,$text_report, null, 'HTML');
-
-if (!empty($setting['Channel_Report'])) {
-        sendmessage($setting['Channel_Report'], $text_report, null, 'HTML');
-    }
+        sendmessage('1201211766',$text_report, null, 'HTML');
 } elseif (preg_match('/^confirmdeleteservice_(\w+)$/', $datain, $dataget)) {
     $username = $dataget[1];
     $nameloc = select("invoice", "*", "username", $username, "select");

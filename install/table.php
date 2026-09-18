@@ -758,6 +758,7 @@ try {
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_PassPhrase','0')");
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('status_perfectmoney','offperfectmoney')");
         $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('cart_auto_approve','off')");
+        $connect->query("INSERT INTO PaySetting (NamePay,ValuePay) VALUES ('trusted_receipt_last_report','')");
     }
     else{
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('Cartstatus','oncard') ");
@@ -772,6 +773,7 @@ try {
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('perfectmoney_PassPhrase','0')");
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('status_perfectmoney','offperfectmoney')");
         $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('cart_auto_approve','off')");
+        $connect->query("INSERT IGNORE INTO PaySetting (NamePay,ValuePay) VALUES ('trusted_receipt_last_report','')");
 
 
 
@@ -848,4 +850,32 @@ try {
     }
 } catch (Exception $e) {
     file_put_contents('error_log',$e->getMessage());
+}
+//-----------------------------------------------------------------
+try {
+    $result = $connect->query("SHOW TABLES LIKE 'trusted_receipt_review'");
+    $table_exists = ($result->num_rows > 0);
+    if (!$table_exists) {
+        $result = $connect->query("CREATE TABLE trusted_receipt_review (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_order VARCHAR(64) NOT NULL,
+        reviewer_chat_id VARCHAR(64) NOT NULL,
+        telegram_message_id VARCHAR(64) NULL,
+        depositor_id VARCHAR(64) NULL,
+        price VARCHAR(64) NULL,
+        card_level INT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        problem_note TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+        reviewed_by VARCHAR(64) NULL,
+        sent_at DATETIME NOT NULL,
+        reviewed_at DATETIME NULL,
+        reminded_at DATETIME NULL,
+        UNIQUE KEY uniq_id_order (id_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_bin");
+        if (!$result) {
+            echo "table trusted_receipt_review".mysqli_error($connect);
+        }
+    }
+} catch (Exception $e) {
+    file_put_contents('error_log', $e->getMessage());
 }

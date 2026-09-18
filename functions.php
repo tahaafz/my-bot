@@ -332,3 +332,88 @@ function sanitizeUserName($userName) {
 
     return $userName;
 }
+
+function ensureTrustedReceiptReviewTable(): void
+{
+    global $pdo;
+    static $ready = false;
+    if ($ready) {
+        return;
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS trusted_receipt_review (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        id_order VARCHAR(64) NOT NULL,
+        reviewer_chat_id VARCHAR(64) NOT NULL,
+        telegram_message_id VARCHAR(64) NULL,
+        depositor_id VARCHAR(64) NULL,
+        price VARCHAR(64) NULL,
+        card_level INT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'pending',
+        problem_note TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+        reviewed_by VARCHAR(64) NULL,
+        sent_at DATETIME NOT NULL,
+        reviewed_at DATETIME NULL,
+        reminded_at DATETIME NULL,
+        UNIQUE KEY uniq_id_order (id_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_bin");
+    $ready = true;
+}
+
+function trustedReceiptMainAdminRecipients(): array
+{
+    global $admin_ids, $receipt_admin_id;
+    return array_values(array_unique(array_filter(array_map('strval', array_merge(
+        is_array($admin_ids) ? $admin_ids : [],
+        !empty($receipt_admin_id) ? [(string)$receipt_admin_id] : []
+    )))));
+}
+
+function insertTrustedReceiptReview(array $row): void
+{
+    global $pdo;
+    ensureTrustedReceiptReviewTable();
+    $stmt = $pdo->prepare("INSERT INTO trusted_receipt_review
+        (id_order, reviewer_chat_id, telegram_message_id, depositor_id, price, card_level, status, sent_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+        ON DUPLICATE KEY UPDATE
+            reviewer_chat_id = VALUES(reviewer_chat_id),
+            telegram_message_id = VALUES(telegram_message_id),
+            depositor_id = VALUES(depositor_id),
+            price = VALUES(price),
+            card_level = VALUES(card_level),
+            status = 'pending',
+            problem_note = NULL,
+            reviewed_by = NULL,
+            reviewed_at = NULL,
+            reminded_at = NULL,
+            sent_at = VALUES(sent_at)");
+    $stmt->execute([
+        $row['id_order'],
+        $row['reviewer_chat_id'],
+        $row['telegram_message_id'] ?? null,
+        $row['depositor_id'] ?? null,
+        $row['price'] ?? null,
+        $row['card_level'] ?? null,
+        $row['sent_at'] ?? date('Y-m-d H:i:s'),
+    ]);
+}
+
+function getTrustedReceiptReview(string $orderId)
+{
+    global $pdo;
+    ensureTrustedReceiptReviewTable();
+    $stmt = $pdo->prepare("SELECT * FROM trusted_receipt_review WHERE id_order = ? LIMIT 1");
+    $stmt->execute([$orderId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function markTrustedReceiptReview(string $orderId, string $status, string $reviewedBy, ?string $problemNote = null): void
+{
+    global $pdo;
+    ensureTrustedReceiptReviewTable();
+    $stmt = $pdo->prepare("UPDATE trusted_receipt_review
+        SET status = ?, reviewed_by = ?, problem_note = ?, reviewed_at = ?
+        WHERE id_order = ?");
+    $stmt->execute([$status, $reviewedBy, $problemNote, date('Y-m-d H:i:s'), $orderId]);
+}
