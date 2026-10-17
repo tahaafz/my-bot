@@ -2751,6 +2751,20 @@ if (!empty($setting['Channel_Report'])) {
         }
 
     }
+    if ($SellDiscountlimit['usefirst'] == "3") {
+        $stmt = $pdo->prepare("SELECT 1 FROM invoice WHERE id_user = :id_user LIMIT 1");
+        $stmt->bindParam(':id_user', $from_id);
+        $stmt->execute();
+        $hasPurchase = $stmt->fetchColumn();
+        $stmt = $pdo->prepare("SELECT 1 FROM invoice WHERE id_user = :id_user AND status IN ('active', 'limited') LIMIT 1");
+        $stmt->bindParam(':id_user', $from_id);
+        $stmt->execute();
+        $hasLiveSubscription = $stmt->fetchColumn();
+        if (!$hasPurchase || $hasLiveSubscription) {
+            sendmessage($from_id, $textbotlang['users']['Discount']['nopurchasediscount'], null, 'HTML');
+            return;
+        }
+    }
     sendmessage($from_id, $textbotlang['users']['Discount']['correctcode'], $keyboard, 'HTML');
     step('payment', $from_id);
     $stmt = $pdo->prepare("SELECT * FROM product WHERE code_product = :code AND (location = :loc1 OR location = '/all') LIMIT 1");
@@ -3900,6 +3914,43 @@ if ($text == "🖥  اضافه کردن پنل") {
     sendmessage($from_id, "🥳", $keyboardadmin, 'HTML');
     step('home', $from_id);
 }
+function broadcastUsersFromQuery(string $sql): array
+{
+    global $pdo;
+    $sql = trim($sql);
+    $sql = rtrim($sql, " \t\n\r;");
+    if ($sql === '' || strpos($sql, ';') !== false) {
+        return ['ok' => false, 'error' => 'فقط یک دستور SELECT مجاز است.'];
+    }
+    if (!preg_match('/^\s*select\s+\*\s+from\s+`?user`?\b/i', $sql)) {
+        return ['ok' => false, 'error' => 'کوئری باید با SELECT * FROM user شروع شود.'];
+    }
+    if (preg_match('/\b(insert|update|delete|drop|alter|truncate|create|replace|grant|revoke|into|outfile|dumpfile|load_file|sleep|benchmark|lock|unlock|call|handler|union)\b/i', $sql)) {
+        return ['ok' => false, 'error' => 'فقط SELECT * از جدول user با شرط مجاز است.'];
+    }
+    try {
+        $stmt = $pdo->query($sql);
+        if ($stmt === false) {
+            $error = $pdo->errorInfo();
+            return ['ok' => false, 'error' => 'اجرای کوئری ناموفق بود: ' . ($error[2] ?? '')];
+        }
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        return ['ok' => false, 'error' => 'اجرای کوئری ناموفق بود: ' . $e->getMessage()];
+    }
+    $users = [];
+    $seen = [];
+    foreach ($rows as $row) {
+        $id = isset($row['id']) ? (string)$row['id'] : '';
+        if ($id === '' || isset($seen[$id])) {
+            continue;
+        }
+        $seen[$id] = true;
+        $users[] = ['id' => $id];
+    }
+    return ['ok' => true, 'users' => $users, 'count' => count($users)];
+}
+
 if ($text == "📨 ارسال پیام") {
     sendmessage($from_id, $textbotlang['users']['selectoption'], $sendmessageuser, 'HTML');
 } elseif ($text == "✉️ ارسال همگانی") {
@@ -3956,6 +4007,70 @@ if ($text == "📨 ارسال پیام") {
         file_put_contents('cron/info', $user['Processing_value']);
         sendmessage($from_id, "📌 پیام شما در صف ارسال قرار گرفت و برای هر کاربر پین خواهد شد.", $Respuseronse, 'HTML');
     }
+} elseif ($text == "🗂 ارسال همگانی با کوئری") {
+    sendmessage($from_id, "کوئری را ارسال کنید.
+
+فقط به این شکل مجاز است:
+<code>SELECT * FROM user WHERE ...</code>
+
+نتیجه باید ردیف‌های جدول user باشد.", $backadmin, 'HTML');
+    step('broadcast_query_sql', $from_id);
+} elseif ($user['step'] == "broadcast_query_sql") {
+    $queryResult = broadcastUsersFromQuery((string)$text);
+    if (!$queryResult['ok']) {
+        sendmessage($from_id, "❌ " . $queryResult['error'], $backadmin, 'HTML');
+        return;
+    }
+    if ($queryResult['count'] < 1) {
+        sendmessage($from_id, "❌ هیچ کاربری با این کوئری پیدا نشد.", $backadmin, 'HTML');
+        return;
+    }
+    if (!is_dir('cron')) {
+        mkdir('cron', 0755, true);
+    }
+    file_put_contents('cron/broadcast_query_' . $from_id . '.json', json_encode($queryResult['users']));
+    $countText = number_format($queryResult['count']);
+    sendmessage($from_id, "در این کوئری <b>{$countText}</b> کاربر وجود دارد.
+
+متن پیام همگانی را ارسال کنید.", $backadmin, 'HTML');
+    step('broadcast_query_text', $from_id);
+} elseif ($user['step'] == "broadcast_query_text") {
+    if ($text === '' || $text === null) {
+        sendmessage($from_id, $textbotlang['Admin']['ManageUser']['ErrorText'], $backadmin, 'HTML');
+        return;
+    }
+    savedata("clear", "text", $text);
+    savedata("save", "id_admin", $from_id);
+    $previewFile = 'cron/broadcast_query_' . $from_id . '.json';
+    $previewUsers = is_file($previewFile) ? json_decode(file_get_contents($previewFile), true) : [];
+    $countText = number_format(is_array($previewUsers) ? count($previewUsers) : 0);
+    sendmessage($from_id, "برای ارسال این پیام به <b>{$countText}</b> کاربر، کلمه زیر را بفرستید:
+تایید", $backadmin, 'HTML');
+    step('broadcast_query_confirm', $from_id);
+} elseif ($user['step'] == "broadcast_query_confirm") {
+    if ($text !== "تایید") {
+        sendmessage($from_id, "برای شروع ارسال، کلمه تایید را بفرستید.", $backadmin, 'HTML');
+        return;
+    }
+    $previewFile = 'cron/broadcast_query_' . $from_id . '.json';
+    $previewUsers = is_file($previewFile) ? json_decode(file_get_contents($previewFile), true) : [];
+    if (!is_array($previewUsers) || count($previewUsers) < 1) {
+        sendmessage($from_id, "❌ لیست کوئری پیدا نشد. دوباره از دکمه ارسال همگانی با کوئری شروع کنید.", $backadmin, 'HTML');
+        step('home', $from_id);
+        return;
+    }
+    step('home', $from_id);
+    $cancelKeyboard = json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => "لغو ارسال", 'callback_data' => 'cancel_sendmessage'],
+            ],
+        ]
+    ]);
+    file_put_contents('cron/users.json', json_encode(array_values($previewUsers)));
+    file_put_contents('cron/info', $user['Processing_value']);
+    @unlink($previewFile);
+    sendmessage($from_id, "📌 پیام شما در صف ارسال قرار گرفت و فقط برای کاربران همین کوئری فرستاده می‌شود. پس از ارسال، پیام تایید برای شما ارسال می‌شود.", $cancelKeyboard, 'HTML');
 } elseif ($text == "📤 فوروارد همگانی") {
     sendmessage($from_id, $textbotlang['Admin']['ManageUser']['ForwardGetext'], $backadmin, 'HTML');
     step('gettextforwardMessage', $from_id);
@@ -5919,11 +6034,19 @@ if ($text == "🎁 ساخت کد تخفیف") {
     step('getlimitcode', $from_id);
 } elseif ($user['step'] == "getlimitcode") {
     update("DiscountSell", "limitDiscount", $text, "codeDiscount", $user['Processing_value']);
-    sendmessage($from_id, "📌 کد تخفیف برای خرید اول باشد یا همه خرید ها
-    0 : همه خرید ها
-    1 : خرید اول ", $backadmin, 'HTML');
+    sendmessage($from_id, "📌 نوع کد تخفیف را مشخص کنید
+0 : همه خرید ها
+1 : خرید اول
+3 : فقط کاربرانی که قبلا خرید داشته‌اند و الان اشتراک فعال ندارند", $backadmin, 'HTML');
     step('getusefirst', $from_id);
 } elseif ($user['step'] == "getusefirst") {
+    if (!in_array($text, ['0', '1', '3'], true)) {
+        sendmessage($from_id, "❌ مقدار نامعتبر است
+0 : همه خرید ها
+1 : خرید اول
+3 : فقط کاربرانی که قبلا خرید داشته‌اند و الان اشتراک فعال ندارند", $backadmin, 'HTML');
+        return;
+    }
     update("DiscountSell", "usefirst", $text, "codeDiscount", $user['Processing_value']);
     sendmessage($from_id, $textbotlang['Admin']['Discount']['SaveCode'], $keyboardadmin, 'HTML');
     step('home', $from_id);

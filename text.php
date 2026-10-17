@@ -190,6 +190,7 @@ $textbotlang['users']['Discount']['correctcode']  = "🤩 کد تخفیف شما
 $textbotlang['users']['Discount']['erorrlimit']  = "❌ محدودیت استفاده از این کد تخفیف به پایان رسیده است";
 $textbotlang['users']['Discount']['erorrlimitdiscount']  = "❌ محدودیت استفاده از این کد هدیه به پایان رسیده است";
 $textbotlang['users']['Discount']['firstdiscount']  = "❌ این کد تخفیف مخصوص خرید اول است";
+$textbotlang['users']['Discount']['nopurchasediscount']  = "❌ این کد تخفیف مخصوص کاربرانی است که قبلا خرید داشته‌اند و در حال حاضر اشتراک فعال ندارند";
 
 
 
