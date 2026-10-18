@@ -307,6 +307,57 @@ if($response === false) {
 
 curl_close($ch);
 }
+
+function sendReceiptApprovalSms(): array
+{
+    $apiKey = getenv('SMSIR_API_KEY');
+    if ($apiKey === false || $apiKey === '') {
+        $apiKey = (string)($GLOBALS['smsir_api_key'] ?? '');
+    }
+    $lineNumber = getenv('SMSIR_LINE_NUMBER');
+    if ($lineNumber === false || $lineNumber === '') {
+        $lineNumber = (string)($GLOBALS['smsir_line_number'] ?? '300089930191');
+    }
+    $mobile = getenv('SMS_ADMIN_MOBILE');
+    if ($mobile === false || $mobile === '') {
+        $mobile = (string)($GLOBALS['sms_admin_mobile'] ?? '');
+    }
+    $mobile = preg_replace('/\D+/', '', (string)$mobile);
+    if ($mobile === '' || $apiKey === '' || $lineNumber === '') {
+        error_log('receipt sms skipped: missing admin mobile, api key, or line number');
+        return ['ok' => false, 'http' => 0, 'body' => 'missing admin mobile, api key, or line number'];
+    }
+
+    $payload = json_encode([
+        'lineNumber' => (int)$lineNumber,
+        'messageText' => "به آریو مارت خوش آمدید 🌿\nariommart.ir",
+        'mobiles' => [$mobile],
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init('https://api.sms.ir/v1/send/bulk');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => [
+            'X-API-KEY: ' . $apiKey,
+            'Accept: application/json',
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => $payload,
+    ]);
+    $response = curl_exec($ch);
+    $curlError = curl_error($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        error_log('receipt sms failed: http ' . $httpCode . ' curl ' . $curlError . ' body ' . (string)$response);
+        return ['ok' => false, 'http' => $httpCode, 'body' => (string)$response, 'error' => $curlError];
+    }
+    return ['ok' => true, 'http' => $httpCode, 'body' => (string)$response];
+}
+
 function savedata($type,$namefiled,$valuefiled){
     global $from_id;
     if($type == "clear"){

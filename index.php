@@ -3452,6 +3452,7 @@ if (!empty($setting['Channel_Report'])) {
         'caption' => $textsendrasid,
         'parse_mode' => "HTML",
     ]);
+    sendReceiptApprovalSms();
     step('home', $from_id);
 //     $order_id = $randomString;
 //     $Payment_report = select("Payment_report", "*", "id_order", $order_id, "select");
