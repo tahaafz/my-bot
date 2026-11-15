@@ -325,6 +325,10 @@ function userInfoKeyboard(array $targetUser, array $textbotlang): string
                 ['text' => $textbotlang['Admin']['ManageUser']['BalanceUser'], 'callback_data' => "Balance"],
             ],
             [
+                ['text' => '➕ افزایش موجودی', 'callback_data' => "silent_bal_add_{$targetUser['id']}"],
+                ['text' => '➖ کاهش موجودی', 'callback_data' => "silent_bal_low_{$targetUser['id']}"],
+            ],
+            [
                 ['text' => userAutoApproveLabel($targetUser), 'callback_data' => "auto_receipt_status"],
                 ['text' => 'تایید خودکار رسید', 'callback_data' => "auto_receipt_status"],
             ],
@@ -5064,26 +5068,24 @@ if ($text == "⬇️ کم کردن موجودی") {
     step('home', $from_id);
 }
 #-------------------------#
-if ($text == "💰 موجودی") {
-    sendmessage($from_id, "💰 مدیریت موجودی کاربر\n\nℹ️ با تغییر موجودی از این بخش هیچ پیامی برای کاربر ارسال نمی‌شود.", $silentBalanceKeyboard, 'HTML');
-    step('home', $from_id);
-} elseif ($text == "➕ افزایش موجودی" || $text == "➖ کاهش موجودی") {
-    $silentMode = $text == "➕ افزایش موجودی" ? 'add' : 'low';
-    $silentTitle = $silentMode == 'add' ? 'افزایش' : 'کاهش';
-    sendmessage($from_id, "🆔 آیدی عددی کاربری که می‌خواهید موجودی‌اش را {$silentTitle} دهید ارسال کنید.", $backadmin, 'HTML');
-    step("silent_balance_id_{$silentMode}", $from_id);
-} elseif ($user['step'] == "silent_balance_id_add" || $user['step'] == "silent_balance_id_low") {
-    if (!in_array($text, $users_ids)) {
-        sendmessage($from_id, $textbotlang['Admin']['not-user'], $backadmin, 'HTML');
-        return;
+if (preg_match('/^silent_bal_(add|low)_(\d+)$/', $datain, $matches)) {
+    $silentTarget = select("user", "*", "id", $matches[2], "select");
+    if (!$silentTarget) {
+        telegram('answerCallbackQuery', [
+            'callback_query_id' => $callback_query_id,
+            'text' => 'کاربر یافت نشد.',
+            'show_alert' => true,
+            'cache_time' => 5,
+        ]);
+    } else {
+        $silentMode = $matches[1];
+        $silentCurrent = number_format((int)$silentTarget['Balance']);
+        $silentTitle = $silentMode == 'add' ? 'اضافه' : 'کسر';
+        update("user", "Processing_value", $matches[2], "id", $from_id);
+        step("silent_balance_price_{$silentMode}", $from_id);
+        sendmessage($from_id, "👤 کاربر: <code>{$matches[2]}</code>\n💰 موجودی فعلی: <b>{$silentCurrent}</b> تومان\n\nمبلغی که می‌خواهید {$silentTitle} شود را به تومان ارسال کنید.\n🔕 پیامی برای کاربر ارسال نمی‌شود.", $backadmin, 'HTML');
+        telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id]);
     }
-    $silentMode = substr($user['step'], -3);
-    $silentTarget = select("user", "*", "id", $text, "select");
-    $silentCurrent = number_format((int)$silentTarget['Balance']);
-    $silentTitle = $silentMode == 'add' ? 'اضافه' : 'کسر';
-    update("user", "Processing_value", $text, "id", $from_id);
-    sendmessage($from_id, "💰 موجودی فعلی کاربر: <b>{$silentCurrent}</b> تومان\n\nمبلغی که می‌خواهید {$silentTitle} شود را به تومان ارسال کنید.", $backadmin, 'HTML');
-    step("silent_balance_price_{$silentMode}", $from_id);
 } elseif ($user['step'] == "silent_balance_price_add" || $user['step'] == "silent_balance_price_low") {
     if (!ctype_digit($text)) {
         sendmessage($from_id, $textbotlang['Admin']['Balance']['Invalidprice'], $backadmin, 'HTML');
@@ -5099,7 +5101,8 @@ if ($text == "💰 موجودی") {
     $silentNew = number_format((int)$silentTarget['Balance']);
     $silentAmountFmt = number_format($silentAmount);
     $silentDone = $silentMode == 'add' ? "به موجودی کاربر اضافه شد" : "از موجودی کاربر کسر شد";
-    sendmessage($from_id, "✅ مبلغ <b>{$silentAmountFmt}</b> تومان {$silentDone}.\n👤 کاربر: <code>{$silentTargetId}</code>\n💰 موجودی جدید: <b>{$silentNew}</b> تومان\n\n🔕 پیامی برای کاربر ارسال نشد.", $silentBalanceKeyboard, 'HTML');
+    sendmessage($from_id, "✅ مبلغ <b>{$silentAmountFmt}</b> تومان {$silentDone}.\n👤 کاربر: <code>{$silentTargetId}</code>\n💰 موجودی جدید: <b>{$silentNew}</b> تومان\n\n🔕 پیامی برای کاربر ارسال نشد.", $User_Services, 'HTML');
+    sendmessage($from_id, $textbotlang['Admin']['ManageUser']['ViewInfo'], userInfoKeyboard($silentTarget, $textbotlang), 'HTML');
     step('home', $from_id);
 }
 #-------------------------#
