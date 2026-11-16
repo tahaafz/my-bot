@@ -3762,6 +3762,179 @@ if ($text == "📯 تنظیمات کانال") {
     sendmessage($from_id, $textbotlang['users']['selectoption'], $channelkeyboard, 'HTML');
 }
 #-------------------------#
+#-------------------------#
+function depositReportKeyboard(): string
+{
+    return json_encode([
+        'inline_keyboard' => [
+            [
+                ['text' => 'امروز', 'callback_data' => 'payrep_today'],
+                ['text' => 'دیروز', 'callback_data' => 'payrep_yesterday'],
+            ],
+            [
+                ['text' => '۷ روز اخیر', 'callback_data' => 'payrep_7d'],
+                ['text' => '۳۰ روز اخیر', 'callback_data' => 'payrep_30d'],
+            ],
+            [
+                ['text' => 'این ماه (شمسی)', 'callback_data' => 'payrep_thismonth'],
+                ['text' => 'ماه قبل (شمسی)', 'callback_data' => 'payrep_lastmonth'],
+            ],
+            [
+                ['text' => 'کل زمان‌ها', 'callback_data' => 'payrep_all'],
+                ['text' => '📅 بازه دلخواه', 'callback_data' => 'payrep_custom'],
+            ],
+        ]
+    ]);
+}
+
+function depositReportJalaliToGregorian(int $jy, int $jm, int $jd): string
+{
+    [$gy, $gm, $gd] = jalali_to_gregorian($jy, $jm, $jd);
+    return sprintf('%04d/%02d/%02d', $gy, $gm, $gd);
+}
+
+function depositReportRange(string $period): ?array
+{
+    $today = date('Y/m/d');
+    $jy = (int)jdate('Y', time(), '', 'Asia/Tehran', 'en');
+    $jm = (int)jdate('n', time(), '', 'Asia/Tehran', 'en');
+    switch ($period) {
+        case 'today':
+            return [$today, $today, 'امروز'];
+        case 'yesterday':
+            $d = date('Y/m/d', strtotime('-1 day'));
+            return [$d, $d, 'دیروز'];
+        case '7d':
+            return [date('Y/m/d', strtotime('-6 days')), $today, '۷ روز اخیر'];
+        case '30d':
+            return [date('Y/m/d', strtotime('-29 days')), $today, '۳۰ روز اخیر'];
+        case 'thismonth':
+            return [depositReportJalaliToGregorian($jy, $jm, 1), $today, 'این ماه (شمسی)'];
+        case 'lastmonth':
+            $ly = $jm == 1 ? $jy - 1 : $jy;
+            $lm = $jm == 1 ? 12 : $jm - 1;
+            $from = depositReportJalaliToGregorian($ly, $lm, 1);
+            $to = date('Y/m/d', strtotime(str_replace('/', '-', depositReportJalaliToGregorian($jy, $jm, 1)) . ' -1 day'));
+            return [$from, $to, 'ماه قبل (شمسی)'];
+        case 'all':
+            return ['0000/00/00', '9999/99/99', 'کل زمان‌ها'];
+    }
+    return null;
+}
+
+function depositReportRowDay($value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    if (ctype_digit($value)) {
+        return date('Y/m/d', (int)$value);
+    }
+    if (preg_match('#^(\d{4})[/-](\d{1,2})[/-](\d{1,2})#', $value, $m)) {
+        return sprintf('%04d/%02d/%02d', $m[1], $m[2], $m[3]);
+    }
+    return '';
+}
+
+function depositReportText(string $from, string $to, string $title): string
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT p.time, p.price, p.credited_toman, u.trusteduser
+        FROM Payment_report p LEFT JOIN user u ON u.id = p.id_user
+        WHERE p.payment_Status IN ('paid', 'auto_paid')");
+    $stmt->execute();
+    $total = ['count' => 0, 'sum' => 0];
+    $levels = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $day = depositReportRowDay($row['time']);
+        if ($day === '' || $day < $from || $day > $to) {
+            continue;
+        }
+        $amount = $row['credited_toman'] !== null && $row['credited_toman'] !== ''
+            ? (int)$row['credited_toman']
+            : (int)$row['price'];
+        $level = $row['trusteduser'] === null ? 'نامشخص' : (string)(int)$row['trusteduser'];
+        if (!isset($levels[$level])) {
+            $levels[$level] = ['count' => 0, 'sum' => 0];
+        }
+        $levels[$level]['count']++;
+        $levels[$level]['sum'] += $amount;
+        $total['count']++;
+        $total['sum'] += $amount;
+    }
+    uksort($levels, function ($a, $b) {
+        if (!is_numeric($a)) return 1;
+        if (!is_numeric($b)) return -1;
+        return (int)$a <=> (int)$b;
+    });
+
+    if ($title === 'کل زمان‌ها') {
+        $rangeText = 'کل زمان‌ها';
+    } else {
+        $fromJ = jdate('Y/m/d', strtotime(str_replace('/', '-', $from)), '', 'Asia/Tehran', 'en');
+        $toJ = jdate('Y/m/d', strtotime(str_replace('/', '-', $to)), '', 'Asia/Tehran', 'en');
+        $rangeText = $fromJ === $toJ ? "{$title} ({$fromJ})" : "{$title} ({$fromJ} تا {$toJ})";
+    }
+
+    $text = "📈 <b>گزارش واریزی‌ها</b>\n🗓 بازه: {$rangeText}\n\n";
+    $text .= "✅ مجموع پرداخت‌های موفق: <b>" . number_format($total['count']) . "</b>\n";
+    $text .= "💰 مجموع مبلغ واریزی: <b>" . number_format($total['sum']) . "</b> تومان\n";
+    if ($total['count'] > 0) {
+        $text .= "\n👥 <b>به تفکیک تراستد یوزر:</b>\n";
+        foreach ($levels as $level => $data) {
+            $text .= "\n🔑 تراستد {$level}\n";
+            $text .= "   ✅ تعداد: " . number_format($data['count']) . "\n";
+            $text .= "   💰 مبلغ: " . number_format($data['sum']) . " تومان\n";
+        }
+    }
+    $text .= "\n⏱ زمان گزارش: " . jdate('Y/m/d H:i', time(), '', 'Asia/Tehran', 'en');
+    return $text;
+}
+
+if ($text == "📈 گزارش واریزی‌ها") {
+    sendmessage($from_id, "📈 بازه زمانی گزارش واریزی‌ها را انتخاب کنید:", depositReportKeyboard(), 'HTML');
+    step('home', $from_id);
+} elseif ($datain == 'payrep_custom') {
+    step('payrep_custom', $from_id);
+    sendmessage($from_id, "📅 بازه را به تاریخ شمسی به این شکل بفرستید:\n<code>1404/08/01 1404/08/30</code>\n\nبرای یک روز، فقط یک تاریخ بفرستید.", $backadmin, 'HTML');
+    telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id]);
+} elseif (preg_match('/^payrep_([a-z0-9]+)$/', $datain, $matches)) {
+    $range = depositReportRange($matches[1]);
+    if ($range !== null) {
+        telegram('editMessageText', [
+            'chat_id' => $from_id,
+            'message_id' => $message_id,
+            'text' => depositReportText($range[0], $range[1], $range[2]),
+            'reply_markup' => depositReportKeyboard(),
+            'parse_mode' => 'HTML',
+        ]);
+    }
+    telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id]);
+} elseif ($user['step'] == "payrep_custom") {
+    $input = tr_num(trim((string)$text), 'en');
+    preg_match_all('#(\d{4})[/-](\d{1,2})[/-](\d{1,2})#', $input, $dates, PREG_SET_ORDER);
+    $valid = count($dates) >= 1 && count($dates) <= 2;
+    foreach ($dates as $d) {
+        if (!jcheckdate((int)$d[2], (int)$d[3], (int)$d[1])) {
+            $valid = false;
+        }
+    }
+    if (!$valid) {
+        sendmessage($from_id, "❌ تاریخ نامعتبر است. مثال:\n<code>1404/08/01 1404/08/30</code>", $backadmin, 'HTML');
+        return;
+    }
+    $endDate = $dates[1] ?? $dates[0];
+    $from = depositReportJalaliToGregorian((int)$dates[0][1], (int)$dates[0][2], (int)$dates[0][3]);
+    $to = depositReportJalaliToGregorian((int)$endDate[1], (int)$endDate[2], (int)$endDate[3]);
+    if ($from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+    step('home', $from_id);
+    sendmessage($from_id, depositReportText($from, $to, 'بازه دلخواه'), depositReportKeyboard(), 'HTML');
+    sendmessage($from_id, $textbotlang['Admin']['Back-Admin'], $keyboardadmin, 'HTML');
+}
+#-------------------------#
 if ($text == "📊 آمار ربات") {
     $date = jdate('Y/m/d');
     $timeacc = jdate('H:i:s', time());
