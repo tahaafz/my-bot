@@ -3840,7 +3840,9 @@ function depositReportRowDay($value): string
 function depositReportText(string $from, string $to, string $title): string
 {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT p.time, p.price, p.credited_toman, u.trusteduser
+    $hasCredited = $pdo->query("SHOW COLUMNS FROM Payment_report LIKE 'credited_toman'")->rowCount() > 0;
+    $creditedSelect = $hasCredited ? 'p.credited_toman' : 'NULL AS credited_toman';
+    $stmt = $pdo->prepare("SELECT p.time, p.price, {$creditedSelect}, u.trusteduser
         FROM Payment_report p LEFT JOIN user u ON u.id = p.id_user
         WHERE p.payment_Status IN ('paid', 'auto_paid')");
     $stmt->execute();
