@@ -187,6 +187,28 @@ function trustedCardSettings(int $trustedLevel): array
     ];
 }
 
+function insertPaymentReport($idUser, $idOrder, $time, $price, $status, $method): void
+{
+    global $pdo, $user;
+    static $hasTrusted = null;
+    if ($hasTrusted === null) {
+        try {
+            $hasTrusted = $pdo->query("SHOW COLUMNS FROM Payment_report LIKE 'trusteduser'")->rowCount() > 0;
+        } catch (Throwable $e) {
+            $hasTrusted = false;
+        }
+    }
+    $trustedUser = $user['trusteduser'] ?? null;
+    $trustedValue = ($trustedUser === '' || $trustedUser === null) ? null : (int)$trustedUser;
+    if ($hasTrusted) {
+        $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method, trusteduser) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$idUser, $idOrder, $time, $price, $status, $method, $trustedValue]);
+        return;
+    }
+    $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$idUser, $idOrder, $time, $price, $status, $method]);
+}
+
 function trustedReceiptReportKeyboard(string $orderId): string
 {
     return json_encode([
@@ -2950,18 +2972,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
         sendmessage($from_id, $textbotlang['users']['Balance']['linkpayments'], $keyboard, 'HTML');
         $dateacc = date('Y/m/d h:i:s');
         $randomString = bin2hex(random_bytes(5));
-        $sql = "INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)";
-        $payment_Status = "Unpaid";
-        $Payment_Method = "zarinpal";
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindParam(1, $from_id);
-        $stmt->bindParam(2, $randomString);
-        $stmt->bindParam(3, $dateacc);
-        $stmt->bindParam(4, $user['Processing_value'], PDO::PARAM_STR);
-        $stmt->bindParam(5, $payment_Status);
-        $stmt->bindParam(6, $Payment_Method);
-
-        $stmt->execute();
+        insertPaymentReport($from_id, $randomString, $dateacc, $user['Processing_value'], "Unpaid", "zarinpal");
         $paymentkeyboard = json_encode([
             'inline_keyboard' => [
                 [
@@ -2986,17 +2997,8 @@ if ($text == $datatextbot['text_Add_Balance']) {
         } 
         sendmessage($from_id, $textbotlang['users']['Balance']['linkpayments'], $keyboard, 'HTML');
         $dateacc = date('Y/m/d h:i:s');
-        $payment_Status = "Unpaid";
-        $Payment_Method = "aqayepardakht";
         $newprice = $user['Processing_value'];
-        $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bindParam(1, $from_id);
-        $stmt->bindParam(2, $randomStringasli);
-        $stmt->bindParam(3, $dateacc);
-        $stmt->bindParam(4, $user['Processing_value'], PDO::PARAM_STR);
-        $stmt->bindParam(5, $payment_Status);
-        $stmt->bindParam(6, $Payment_Method);
-        $stmt->execute();
+        insertPaymentReport($from_id, $randomStringasli, $dateacc, $user['Processing_value'], "Unpaid", "aqayepardakht");
         $ch2 = curl_init('https://bot.tronado.cloud/Tron/GetPriceToToman');
         curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch2, CURLOPT_POST, true);
@@ -3100,16 +3102,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
         sendmessage($from_id, $textbotlang['users']['Balance']['linkpayments'], $keyboard, 'HTML');
         $dateacc = date('Y/m/d h:i:s');
         $randomString = bin2hex(random_bytes(5));
-        $payment_Status = "Unpaid";
-        $Payment_Method = "Nowpayments";
-        $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bindParam(1, $from_id);
-        $stmt->bindParam(2, $randomString);
-        $stmt->bindParam(3, $dateacc);
-        $stmt->bindParam(4, $user['Processing_value'], PDO::PARAM_STR);
-        $stmt->bindParam(5, $payment_Status);
-        $stmt->bindParam(6, $Payment_Method);
-        $stmt->execute();
+        insertPaymentReport($from_id, $randomString, $dateacc, $user['Processing_value'], "Unpaid", "Nowpayments");
         $paymentkeyboard = json_encode([
             'inline_keyboard' => [
                 [
@@ -3147,16 +3140,7 @@ if ($text == $datatextbot['text_Add_Balance']) {
         sendmessage($from_id, $textbotlang['users']['Balance']['linkpayments'], $keyboard, 'HTML');
         $dateacc = date('Y/m/d h:i:s');
         $randomString = bin2hex(random_bytes(5));
-        $payment_Status = "Unpaid";
-        $Payment_Method = "Currency Rial gateway";
-        $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bindParam(1, $from_id);
-        $stmt->bindParam(2, $randomString);
-        $stmt->bindParam(3, $dateacc);
-        $stmt->bindParam(4, $user['Processing_value'], PDO::PARAM_STR);
-        $stmt->bindParam(5, $payment_Status);
-        $stmt->bindParam(6, $Payment_Method);
-        $stmt->execute();
+        insertPaymentReport($from_id, $randomString, $dateacc, $user['Processing_value'], "Unpaid", "Currency Rial gateway");
         $order_description = "weswap_" . $randomString . "_" . $trxprice;
         $pay = nowPayments('payment', $usdprice, $randomString, $order_description);
         if (!isset ($pay->pay_address)) {
@@ -3271,16 +3255,7 @@ if ($user['step'] == "getvcodeuser") {
 ⚙️ کد پیگیری پرداخت شما :$randomString  ", $keyboard, 'HTML');
     $dateacc = date('Y/m/d h:i:s');
     $randomString = bin2hex(random_bytes(5));
-    $payment_Status = "paid";
-    $Payment_Method = "perfectmoney";
-    $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bindParam(1, $from_id);
-    $stmt->bindParam(2, $randomString);
-    $stmt->bindParam(3, $dateacc);
-    $stmt->bindParam(4, $USD);
-    $stmt->bindParam(5, $payment_Status);
-    $stmt->bindParam(6, $Payment_Method);
-    $stmt->execute();
+    insertPaymentReport($from_id, $randomString, $dateacc, $USD, "paid", "perfectmoney");
 }
 if (preg_match('/kossher/', $datain, $dataget)) {
     sendmessage($from_id, $textbotlang['users']['Balance']['Send-receipt2'], $keyboard, 'HTML');
@@ -3375,14 +3350,7 @@ if (!empty($setting['Channel_Report'])) {
     $cardSettings = trustedCardSettings((int)$user['trusteduser']);
     $trustedCardLevel = (int)$cardSettings['level'];
     $trustedCardOwnerId = (string)$cardSettings['trusted_user_id'];
-    $stmt = $pdo->prepare("INSERT INTO Payment_report (id_user, id_order, time, price, payment_Status, Payment_Method) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bindParam(1, $from_id);
-    $stmt->bindParam(2, $randomString);
-    $stmt->bindParam(3, $dateacc);
-    $stmt->bindParam(4, $user['Processing_value'], PDO::PARAM_STR);
-    $stmt->bindParam(5, $payment_Status);
-    $stmt->bindParam(6, $Payment_Method);
-    $stmt->execute();
+    insertPaymentReport($from_id, $randomString, $dateacc, $user['Processing_value'], $payment_Status, $Payment_Method);
     sendmessage($from_id, $textbotlang['users']['Balance']['Send-receipt'], $keyboard, 'HTML');
     $Confirm_pay = json_encode([
         'inline_keyboard' => [
@@ -3842,8 +3810,16 @@ function depositReportText(string $from, string $to, string $title): string
     global $pdo;
     $hasCredited = $pdo->query("SHOW COLUMNS FROM Payment_report LIKE 'credited_toman'")->rowCount() > 0;
     $creditedSelect = $hasCredited ? 'p.credited_toman' : 'NULL AS credited_toman';
-    $stmt = $pdo->prepare("SELECT p.time, p.price, {$creditedSelect}, u.trusteduser
-        FROM Payment_report p LEFT JOIN user u ON u.id = p.id_user
+    $hasTrustedSnapshot = $pdo->query("SHOW COLUMNS FROM Payment_report LIKE 'trusteduser'")->rowCount() > 0;
+    if ($hasTrustedSnapshot) {
+        $trustedSelect = 'p.trusteduser';
+        $trustedJoin = '';
+    } else {
+        $trustedSelect = 'u.trusteduser';
+        $trustedJoin = 'LEFT JOIN user u ON u.id = p.id_user';
+    }
+    $stmt = $pdo->prepare("SELECT p.time, p.price, {$creditedSelect}, {$trustedSelect} AS trusteduser
+        FROM Payment_report p {$trustedJoin}
         WHERE p.payment_Status IN ('paid', 'auto_paid')");
     $stmt->execute();
     $total = ['count' => 0, 'sum' => 0];

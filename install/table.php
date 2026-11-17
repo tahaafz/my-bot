@@ -517,7 +517,8 @@ try {
         price varchar(400) NULL,
         dec_not_confirmed varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
         Payment_Method varchar(400) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
-        payment_Status varchar(2000) NULL)
+        payment_Status varchar(2000) NULL,
+        trusteduser INT NULL)
         ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_bin");
         if (!$result) {
             echo "table Payment_report".mysqli_error($connect);
@@ -533,6 +534,12 @@ try {
         if (mysqli_num_rows($Check_credited) != 1) {
             $connect->query("ALTER TABLE Payment_report ADD credited_toman BIGINT NULL");
             echo "The credited_toman field was added ✅";
+        }
+      $Check_trusted = $connect->query("SHOW COLUMNS FROM Payment_report LIKE 'trusteduser'");
+        if (mysqli_num_rows($Check_trusted) != 1) {
+            $connect->query("ALTER TABLE Payment_report ADD trusteduser INT NULL");
+            $connect->query("UPDATE Payment_report p LEFT JOIN user u ON u.id = p.id_user SET p.trusteduser = u.trusteduser WHERE p.trusteduser IS NULL");
+            echo "The trusteduser field was added ✅";
         }
     }
 } catch (Exception $e) {
