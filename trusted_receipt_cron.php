@@ -121,6 +121,7 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
 
     $total = count($rows);
     $counts = ['pending' => 0, 'reviewed' => 0, 'problem' => 0];
+    $levels = [];
     $reviewers = [];
     foreach ($rows as $row) {
         $status = (string)($row['status'] ?? 'pending');
@@ -128,6 +129,14 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
             $counts[$status] = 0;
         }
         $counts[$status]++;
+        $level = $row['card_level'] === null || $row['card_level'] === '' ? 'نامشخص' : (string)(int)$row['card_level'];
+        if (!isset($levels[$level])) {
+            $levels[$level] = ['pending' => 0, 'reviewed' => 0, 'problem' => 0];
+        }
+        if (!isset($levels[$level][$status])) {
+            $levels[$level][$status] = 0;
+        }
+        $levels[$level][$status]++;
         if (in_array($status, ['reviewed', 'problem'], true) && !empty($row['reviewed_by'])) {
             $reviewerId = (string)$row['reviewed_by'];
             if (!isset($reviewers[$reviewerId])) {
@@ -136,6 +145,15 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
             $reviewers[$reviewerId][$status]++;
         }
     }
+    uksort($levels, static function ($a, $b) {
+        if (!is_numeric($a)) {
+            return 1;
+        }
+        if (!is_numeric($b)) {
+            return -1;
+        }
+        return (int)$a <=> (int)$b;
+    });
 
     $jalali = function_exists('jdate') ? jdate('Y/m/d', '', '', 'Asia/Tehran', 'en') : $day;
     $summary = "گزارش رسیدهای تراستد — {$jalali}
@@ -144,6 +162,15 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
 بررسی‌شده: {$counts['reviewed']}
 گزارش مشکل: {$counts['problem']}
 بررسی‌نشده: {$counts['pending']}";
+
+    foreach ($levels as $level => $levelCounts) {
+        $levelSent = (int)($levelCounts['pending'] ?? 0) + (int)($levelCounts['reviewed'] ?? 0) + (int)($levelCounts['problem'] ?? 0);
+        $summary .= "\n\n🔑 تراستد {$level}";
+        $summary .= "\n   ارسال‌شده: {$levelSent}";
+        $summary .= "\n   بررسی‌شده: " . (int)($levelCounts['reviewed'] ?? 0);
+        $summary .= "\n   گزارش مشکل: " . (int)($levelCounts['problem'] ?? 0);
+        $summary .= "\n   بررسی‌نشده: " . (int)($levelCounts['pending'] ?? 0);
+    }
 
     if ($reviewers !== []) {
         $summary .= "\n\nبررسی‌کنندگان:";
@@ -157,10 +184,17 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
         "گزارش رسیدهای تراستد {$jalali}",
         "ارسال‌شده: {$total} | بررسی‌شده: {$counts['reviewed']} | گزارش مشکل: {$counts['problem']} | بررسی‌نشده: {$counts['pending']}",
         '',
-        'کد پیگیری | مبلغ | وضعیت | بررسی‌کننده | زمان ارسال',
     ];
+    foreach ($levels as $level => $levelCounts) {
+        $levelSent = (int)($levelCounts['pending'] ?? 0) + (int)($levelCounts['reviewed'] ?? 0) + (int)($levelCounts['problem'] ?? 0);
+        $fileLines[] = "تراستد {$level} | ارسال {$levelSent} | بررسی {$levelCounts['reviewed']} | مشکل {$levelCounts['problem']} | نشده {$levelCounts['pending']}";
+    }
+    $fileLines[] = '';
+    $fileLines[] = 'تراستد | کد پیگیری | مبلغ | وضعیت | بررسی‌کننده | زمان ارسال';
     foreach ($rows as $row) {
+        $level = $row['card_level'] === null || $row['card_level'] === '' ? 'نامشخص' : (string)(int)$row['card_level'];
         $fileLines[] = implode(' | ', [
+            $level,
             (string)$row['id_order'],
             (string)($row['price'] ?? ''),
             trusted_receipt_status_label((string)($row['status'] ?? 'pending')),
@@ -178,15 +212,22 @@ function send_trusted_receipt_daily_report(PDO $pdo, bool $force = false): bool
         throw new RuntimeException('No main admin recipients found for trusted receipt report.');
     }
 
+    $caption = $summary;
+    if (mb_strlen($summary) > 1000) {
+        $caption = "گزارش رسیدهای تراستد — {$jalali}\nتفکیک سطح‌ها در پیام بعدی است.";
+    }
     $sent = 0;
     foreach ($recipients as $adminId) {
         $result = telegram('sendDocument', [
             'chat_id' => $adminId,
             'document' => new CURLFile($filePath, 'text/plain', 'trusted_receipt_report_' . $day . '.txt'),
-            'caption' => $summary,
+            'caption' => $caption,
         ]);
         if (is_object($result) && !empty($result->ok)) {
             $sent++;
+            if ($caption !== $summary) {
+                sendmessage($adminId, $summary, null, 'HTML');
+            }
         } else {
             sendmessage($adminId, $summary, null, 'HTML');
             $sent++;
